@@ -1,6 +1,6 @@
 # AI Trainer Backend (Step 22)
 
-Backend with authentication, exercise CRUD, AI proxy, YooKassa subscriptions, Strava integration, and admin user management using Express + Prisma + JWT.
+Backend with authentication, exercise CRUD, AI proxy, YooKassa subscriptions, workout tracking/import, and admin user management using Express + Prisma + JWT.
 
 Production deployment guide for Beget VPS:
 
@@ -57,8 +57,8 @@ If you already applied Step 2 migration, create the next one:
 4. Apply billing schema changes:
    npx prisma migrate dev --schema backend/prisma/schema.prisma --name add_yookassa_billing
 
-5. Apply Strava schema changes:
-   npx prisma migrate dev --schema backend/prisma/schema.prisma --name add_strava_integration
+5. Apply workout tracking schema changes:
+   npx prisma migrate dev --schema backend/prisma/schema.prisma --name add_workout_tracking
 
 ## 3) Start API
 
@@ -150,39 +150,37 @@ Set webhook URL in YooKassa merchant cabinet:
 
 The backend always verifies payment status from YooKassa API before writing final status to DB.
 
-## Strava endpoints (Step 6)
+## Workout endpoints (Step 6 replacement)
 
 User (Bearer token):
 
-- `GET /api/strava/connect-url` - get OAuth URL for Strava connect flow
-- `GET /api/strava/connection/me` - current Strava connection and latest imported activities
-- `POST /api/strava/import` - import athlete activities from Strava API to local DB
-- `DELETE /api/strava/connection` - disconnect Strava account
+- `GET /api/workouts` - list latest workouts for current user
+- `POST /api/workouts/manual` - create manual workout entry
+- `POST /api/workouts/import` - import workouts from CSV/GPX/TCX file content
+- `GET /api/workouts/integration/me` - get current API push integration info
+- `POST /api/workouts/integration/regenerate-key` - rotate API key for external integrations
 
-OAuth callback:
+Public push endpoint for external apps:
 
-- `GET /api/strava/callback` - exchanges code to token and saves connection
+- `POST /api/workouts/integration/push/:apiKey`
 
-Request body example for activity import:
+Request body example for manual workout:
 
 ```json
 {
-  "page": 1,
-  "perPage": 30,
-  "after": 1735689600
+  "title": "Интервальный бег",
+  "type": "Бег",
+  "startedAt": "2026-04-16T09:00:00.000Z",
+  "distanceKm": 6.4,
+  "durationMin": 42,
+  "calories": 520,
+  "notes": "Пульс в зоне 3"
 }
 ```
 
-### Strava environment variables
+### Workout integration environment variables
 
-- `STRAVA_CLIENT_ID` - app client id from Strava settings
-- `STRAVA_CLIENT_SECRET` - app client secret
-- `STRAVA_REDIRECT_URI` - callback URL, for example `https://your-domain.com/api/strava/callback`
-- `STRAVA_OAUTH_BASE_URL` - default `https://www.strava.com/oauth`
-- `STRAVA_API_BASE_URL` - default `https://www.strava.com/api/v3`
-- `STRAVA_FRONTEND_SUCCESS_URL` - where user is redirected after successful connect
-- `STRAVA_FRONTEND_ERROR_URL` - where user is redirected if connect fails
-- `STRAVA_STATE_SECRET` - secret used to sign OAuth state parameter
+- `WORKOUT_API_KEY_SALT` - salt for hashing personal API keys (defaults to JWT secret)
 
 ## Admin user management endpoints (Step 8)
 

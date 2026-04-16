@@ -78,14 +78,7 @@ YOOKASSA_SECRET_KEY=replace_secret_key
 YOOKASSA_API_BASE_URL=https://api.yookassa.ru/v3
 YOOKASSA_RETURN_URL=https://your-domain.com/billing/success
 
-STRAVA_CLIENT_ID=replace_strava_client_id
-STRAVA_CLIENT_SECRET=replace_strava_client_secret
-STRAVA_REDIRECT_URI=https://your-domain.com/api/strava/callback
-STRAVA_OAUTH_BASE_URL=https://www.strava.com/oauth
-STRAVA_API_BASE_URL=https://www.strava.com/api/v3
-STRAVA_FRONTEND_SUCCESS_URL=https://your-domain.com/profile?strava=connected
-STRAVA_FRONTEND_ERROR_URL=https://your-domain.com/profile?strava=error
-STRAVA_STATE_SECRET=replace_long_random_state_secret
+WORKOUT_API_KEY_SALT=replace_long_random_workout_salt
 ```
 
 Create frontend env file:
@@ -148,15 +141,15 @@ certbot --nginx -d your-domain.com -d www.your-domain.com
 systemctl reload nginx
 ```
 
-## 9. Configure external webhooks and OAuth callbacks
+## 9. Configure external webhooks and workout integrations
 
 YooKassa webhook URL:
 
 - `https://your-domain.com/api/payments/yookassa/webhook`
 
-Strava callback URL:
+Workout push endpoint template:
 
-- `https://your-domain.com/api/strava/callback`
+- `https://your-domain.com/api/workouts/integration/push/{API_KEY}`
 
 ## 10. Smoke tests
 
@@ -168,8 +161,8 @@ Strava callback URL:
    - register and login from UI
 4. Payment:
    - create test payment in YooKassa test mode
-5. Strava:
-   - connect account and run activity import
+5. Workouts:
+   - add manual workout and test CSV/GPX/TCX import
 
 ## 11. Quick update workflow
 
@@ -278,7 +271,7 @@ Important values:
 - `DATABASE_URL=postgresql://ai_trainer_staging_user:...@localhost:5432/ai_trainer_staging`
 - `CORS_ORIGIN=https://staging.your-domain.com`
 - `YOOKASSA_RETURN_URL=https://staging.your-domain.com/billing/success`
-- `STRAVA_REDIRECT_URI=https://staging.your-domain.com/api/strava/callback`
+- `WORKOUT_API_KEY_SALT=replace_long_random_workout_salt`
 
 Fill `/var/www/ai-trainer-staging/current/.env.production`:
 

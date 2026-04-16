@@ -41,6 +41,12 @@ enum PaymentStatus {
   CANCELED
 }
 
+enum WorkoutSource {
+  MANUAL
+  FILE_IMPORT
+  API
+}
+
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
@@ -53,8 +59,8 @@ model User {
   exercises     Exercise[]
   subscriptions Subscription[]
   payments      Payment[]
-  stravaConnection StravaConnection?
-  stravaActivities StravaActivity[]
+  workouts          Workout[]
+  workoutApiKeys    WorkoutApiKey[]
 }
 
 model RefreshToken {
@@ -156,45 +162,37 @@ model Payment {
   @@index([subscriptionId])
 }
 
-model StravaConnection {
-  id               String           @id @default(cuid())
-  userId           String           @unique
-  athleteId        String
-  athleteUsername  String?
-  athleteFirstName String?
-  athleteLastName  String?
-  accessToken      String
-  refreshToken     String
-  tokenType        String           @default("Bearer")
-  scope            String?
-  expiresAt        DateTime
-  lastSyncedAt     DateTime?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  activities       StravaActivity[]
+model Workout {
+  id         String        @id @default(cuid())
+  userId     String
+  source     WorkoutSource @default(MANUAL)
+  title      String
+  type       String
+  startedAt  DateTime
+  distanceKm Float?
+  durationMin Float?
+  calories   Int?
+  notes      String?
+  externalId String?
+  rawPayload Json?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([expiresAt])
+  @@index([userId, startedAt])
+  @@index([source])
 }
 
-model StravaActivity {
-  id           String           @id @default(cuid())
-  connectionId String
-  userId       String
-  externalId   String
-  name         String?
-  sportType    String?
-  distance     Float?
-  movingTime   Int?
-  elapsedTime  Int?
-  startDate    DateTime?
-  rawPayload   Json?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  connection   StravaConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+model WorkoutApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  keyHash    String    @unique
+  keyPreview String
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, externalId], name: "userId_externalId")
-  @@index([userId, startDate])
-  @@index([connectionId])
+  @@index([userId, revokedAt])
 }

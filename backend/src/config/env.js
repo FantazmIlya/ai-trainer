@@ -30,14 +30,5 @@ export const env = {
   yookassaSecretKey: process.env.YOOKASSA_SECRET_KEY || "",
   yookassaApiBaseUrl: process.env.YOOKASSA_API_BASE_URL || "https://api.yookassa.ru/v3",
   yookassaReturnUrl: process.env.YOOKASSA_RETURN_URL || "http://localhost:5173/billing/success",
-  stravaClientId: process.env.STRAVA_CLIENT_ID || "",
-  stravaClientSecret: process.env.STRAVA_CLIENT_SECRET || "",
-  stravaRedirectUri: process.env.STRAVA_REDIRECT_URI || "http://localhost:4000/api/strava/callback",
-  stravaOauthBaseUrl: process.env.STRAVA_OAUTH_BASE_URL || "https://www.strava.com/oauth",
-  stravaApiBaseUrl: process.env.STRAVA_API_BASE_URL || "https://www.strava.com/api/v3",
-  stravaFrontendSuccessUrl:
-    process.env.STRAVA_FRONTEND_SUCCESS_URL || "http://localhost:5173/profile?strava=connected",
-  stravaFrontendErrorUrl:
-    process.env.STRAVA_FRONTEND_ERROR_URL || "http://localhost:5173/profile?strava=error",
-  stravaStateSecret: process.env.STRAVA_STATE_SECRET || process.env.JWT_ACCESS_SECRET,
+  workoutApiKeySalt: process.env.WORKOUT_API_KEY_SALT || process.env.JWT_ACCESS_SECRET,
 };

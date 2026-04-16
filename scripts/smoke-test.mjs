@@ -61,14 +61,14 @@ async function run() {
   }
   console.log("[ok] Auth me -> 200");
 
-  const stravaRes = await fetch(`${baseUrl}/api/strava/connection/me`, {
+  const workoutsRes = await fetch(`${baseUrl}/api/workouts`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
 
-  if (stravaRes.status !== 200) {
-    throw new Error(`Strava connection status failed: expected 200, got ${stravaRes.status}`);
+  if (workoutsRes.status !== 200) {
+    throw new Error(`Workout history failed: expected 200, got ${workoutsRes.status}`);
   }
-  console.log("[ok] Strava connection status -> 200");
+  console.log("[ok] Workout history -> 200");
 }
 
 run()

@@ -5,7 +5,7 @@ import authRoutes from "./routes/auth.routes.js";
 import exercisesRoutes from "./routes/exercises.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import paymentsRoutes from "./routes/payments.routes.js";
-import stravaRoutes from "./routes/strava.routes.js";
+import workoutsRoutes from "./routes/workouts.routes.js";
 import adminUsersRoutes from "./routes/admin.users.routes.js";
 import { prisma } from "./lib/prisma.js";
 
@@ -22,7 +22,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/exercises", exercisesRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/payments", paymentsRoutes);
-app.use("/api/strava", stravaRoutes);
+app.use("/api/workouts", workoutsRoutes);
 app.use("/api/admin", adminUsersRoutes);
 
 app.use((err, _req, res, _next) => {

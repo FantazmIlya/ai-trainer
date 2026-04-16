@@ -79,13 +79,23 @@ type AdminUserItem = {
   };
 };
 
-type StravaActivity = {
+type Workout = {
   id: string;
-  name: string | null;
-  sportType: string | null;
-  distance: number | null;
-  movingTime: number | null;
-  startDate: string | null;
+  source: "MANUAL" | "FILE_IMPORT" | "API";
+  title: string;
+  type: string;
+  startedAt: string;
+  distanceKm: number | null;
+  durationMin: number | null;
+  calories: number | null;
+  notes: string | null;
+};
+
+type WorkoutIntegrationMeta = {
+  id: string;
+  keyPreview: string;
+  createdAt: string;
+  lastUsedAt: string | null;
 };
 
 type ApiError = {
@@ -103,19 +113,19 @@ function formatMoney(kopecks: number, currency: string) {
   }).format(kopecks / 100);
 }
 
-function formatDistance(meters: number | null) {
-  if (!meters) {
+function formatDistance(km: number | null) {
+  if (!km) {
     return "-";
   }
-  return `${(meters / 1000).toFixed(2)} км`;
+  return `${km.toFixed(2)} км`;
 }
 
-function formatDuration(seconds: number | null) {
-  if (!seconds) {
+function formatDuration(minutes: number | null) {
+  if (!minutes) {
     return "-";
   }
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
   if (h > 0) {
     return `${h} ч ${m} мин`;
   }
@@ -511,7 +521,7 @@ function HomePage({ session }: { session: Session | null }) {
             transition={{ delay: 0.2 }}
             className="mt-6 max-w-2xl text-lg text-zinc-200"
           >
-            Подключайте Strava, общайтесь с AI-ассистентом на базе Grok, изучайте библиотеку упражнений и
+            Ведите журнал тренировок, общайтесь с AI-ассистентом на базе Grok, изучайте библиотеку упражнений и
             управляйте подпиской через YooKassa.
           </motion.p>
           <motion.div
@@ -544,7 +554,7 @@ function HomePage({ session }: { session: Session | null }) {
         <div>
           <p className="text-xs uppercase tracking-widest text-cyan-300">03</p>
           <h2 className="mt-2 text-xl font-semibold">Интеграции</h2>
-          <p className="mt-2 text-zinc-300">YooKassa для монетизации и Strava для импорта тренировочной активности.</p>
+          <p className="mt-2 text-zinc-300">YooKassa для монетизации и универсальный API-импорт тренировочной активности.</p>
         </div>
       </section>
     </main>
@@ -840,30 +850,36 @@ function ProfilePage({
   apiFetch: <T>(path: string, init?: RequestInit, auth?: boolean) => Promise<T>;
   refreshCurrentUser: () => Promise<void>;
 }) {
-  const location = useLocation();
+  const [manualForm, setManualForm] = useState({
+    title: "",
+    type: "Бег",
+    startedAt: new Date().toISOString().slice(0, 16),
+    distanceKm: "",
+    durationMin: "",
+    calories: "",
+    notes: "",
+  });
   const [profile, setProfile] = useState<User | null>(null);
-  const [strava, setStrava] = useState<{
-    connected: boolean;
-    connection: { athleteFirstName: string | null; athleteLastName: string | null; expiresAt: string } | null;
-    activities: StravaActivity[];
-  } | null>(null);
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [integration, setIntegration] = useState<{ endpoint: string; apiKey: WorkoutIntegrationMeta | null } | null>(null);
+  const [newApiKey, setNewApiKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSuccess(null);
     try {
-      const [me, stravaPayload] = await Promise.all([
+      const [me, workoutsPayload, integrationPayload] = await Promise.all([
         apiFetch<{ user: User }>("/api/auth/me", undefined, true),
-        apiFetch<{
-          connected: boolean;
-          connection: { athleteFirstName: string | null; athleteLastName: string | null; expiresAt: string } | null;
-          activities: StravaActivity[];
-        }>("/api/strava/connection/me", undefined, true),
+        apiFetch<{ items: Workout[] }>("/api/workouts", undefined, true),
+        apiFetch<{ endpoint: string; apiKey: WorkoutIntegrationMeta | null }>("/api/workouts/integration/me", undefined, true),
       ]);
       setProfile(me.user);
-      setStrava(stravaPayload);
+      setWorkouts(workoutsPayload.items);
+      setIntegration(integrationPayload);
       await refreshCurrentUser();
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить кабинет");
@@ -874,41 +890,98 @@ function ProfilePage({
 
   useEffect(() => {
     void load();
-  }, [load, location.search]);
+  }, [load]);
 
-  const connectStrava = async () => {
+  const createManualWorkout = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
     try {
-      const payload = await apiFetch<{ authUrl: string }>("/api/strava/connect-url", undefined, true);
-      window.location.href = payload.authUrl;
-    } catch (connectError) {
-      setError(connectError instanceof Error ? connectError.message : "Не удалось запустить OAuth");
+      await apiFetch(
+        "/api/workouts/manual",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: manualForm.title,
+            type: manualForm.type,
+            startedAt: new Date(manualForm.startedAt).toISOString(),
+            distanceKm: manualForm.distanceKm ? Number(manualForm.distanceKm) : undefined,
+            durationMin: manualForm.durationMin ? Number(manualForm.durationMin) : undefined,
+            calories: manualForm.calories ? Number(manualForm.calories) : undefined,
+            notes: manualForm.notes || undefined,
+          }),
+        },
+        true,
+      );
+
+      setManualForm((previous) => ({
+        ...previous,
+        title: "",
+        distanceKm: "",
+        durationMin: "",
+        calories: "",
+        notes: "",
+      }));
+      setSuccess("Тренировка добавлена.");
+      await load();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Не удалось добавить тренировку");
     }
   };
 
-  const importActivities = async () => {
+  const importWorkoutFile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError(null);
+    setSuccess(null);
     try {
-      await apiFetch("/api/strava/import", { method: "POST", body: JSON.stringify({ perPage: 30 }) }, true);
+      const form = new FormData(event.currentTarget);
+      const file = form.get("file");
+      if (!(file instanceof File)) {
+        setError("Выберите файл CSV, GPX или TCX");
+        return;
+      }
+
+      const content = await file.text();
+      const payload = await apiFetch<{ importedCount: number }>(
+        "/api/workouts/import",
+        {
+          method: "POST",
+          body: JSON.stringify({ fileName: file.name, content }),
+        },
+        true,
+      );
+
+      event.currentTarget.reset();
+      setSuccess(`Импортировано тренировок: ${payload.importedCount}`);
       await load();
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : "Не удалось импортировать активности");
+      setError(importError instanceof Error ? importError.message : "Не удалось импортировать файл");
     }
   };
 
-  const disconnect = async () => {
+  const regenerateApiKey = async () => {
     setError(null);
+    setSuccess(null);
     try {
-      await apiFetch("/api/strava/connection", { method: "DELETE" }, true);
+      const payload = await apiFetch<{ apiKey: string }>(
+        "/api/workouts/integration/regenerate-key",
+        { method: "POST" },
+        true,
+      );
+
+      setNewApiKey(payload.apiKey);
+      setSuccess("Новый API-ключ сгенерирован. Сохраните его сейчас.");
       await load();
-    } catch (disconnectError) {
-      setError(disconnectError instanceof Error ? disconnectError.message : "Не удалось отключить Strava");
+    } catch (keyError) {
+      setError(keyError instanceof Error ? keyError.message : "Не удалось сгенерировать ключ");
     }
   };
 
   return (
-    <Page title="Личный кабинет" subtitle="Управление профилем, подпиской и подключением фитнес-трекера.">
+    <Page title="Личный кабинет" subtitle="Управление профилем и журналом тренировок без зависимости от внешних платформ.">
       {loading && <p className="text-zinc-300">Загрузка данных...</p>}
       {error && <p className="mb-5 text-rose-300">{error}</p>}
+      {success && <p className="mb-5 text-emerald-300">{success}</p>}
 
       {profile && (
         <section className="space-y-8">
@@ -919,41 +992,109 @@ function ProfilePage({
             <p className="mt-1 text-zinc-300">Премиум: {profile.hasPremiumAccess ? "Активен" : "Не активен"}</p>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-            <h2 className="text-xl font-semibold">Strava</h2>
-            {!strava?.connected ? (
-              <div className="mt-3">
-                <p className="text-zinc-300">Аккаунт не подключен.</p>
-                <button onClick={() => void connectStrava()} className="ui-btn mt-3 border border-orange-300/60 bg-orange-400/12 text-orange-100 hover:bg-orange-400/18">
-                  Подключить Strava
-                </button>
-              </div>
-            ) : (
-              <div className="mt-3 space-y-3">
-                <p className="text-zinc-300">
-                  Подключен: {strava.connection?.athleteFirstName || "Athlete"} {strava.connection?.athleteLastName || ""}
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  <button onClick={() => void importActivities()} className="ui-btn ui-btn-soft">
-                    Импортировать активности
-                  </button>
-                  <button onClick={() => void disconnect()} className="ui-btn ui-btn-ghost">
-                    Отключить
-                  </button>
-                </div>
+          <form onSubmit={createManualWorkout} className="grid gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 md:grid-cols-2">
+            <h2 className="md:col-span-2 text-xl font-semibold">Добавить тренировку вручную</h2>
+            <input
+              className="ui-input"
+              placeholder="Название"
+              value={manualForm.title}
+              onChange={(event) => setManualForm((previous) => ({ ...previous, title: event.target.value }))}
+              required
+            />
+            <input
+              className="ui-input"
+              placeholder="Тип (бег, вело, силовая)"
+              value={manualForm.type}
+              onChange={(event) => setManualForm((previous) => ({ ...previous, type: event.target.value }))}
+              required
+            />
+            <input
+              className="ui-input"
+              type="datetime-local"
+              value={manualForm.startedAt}
+              onChange={(event) => setManualForm((previous) => ({ ...previous, startedAt: event.target.value }))}
+              required
+            />
+            <input
+              className="ui-input"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Дистанция, км"
+              value={manualForm.distanceKm}
+              onChange={(event) => setManualForm((previous) => ({ ...previous, distanceKm: event.target.value }))}
+            />
+            <input
+              className="ui-input"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="Длительность, мин"
+              value={manualForm.durationMin}
+              onChange={(event) => setManualForm((previous) => ({ ...previous, durationMin: event.target.value }))}
+            />
+            <input
+              className="ui-input"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="Калории"
+              value={manualForm.calories}
+              onChange={(event) => setManualForm((previous) => ({ ...previous, calories: event.target.value }))}
+            />
+            <textarea
+              className="ui-textarea md:col-span-2"
+              rows={3}
+              placeholder="Комментарий"
+              value={manualForm.notes}
+              onChange={(event) => setManualForm((previous) => ({ ...previous, notes: event.target.value }))}
+            />
+            <button className="ui-btn ui-btn-soft md:col-span-2">Сохранить тренировку</button>
+          </form>
 
-                <div className="mt-4 divide-y divide-white/10 border-t border-white/10">
-                  {strava.activities.map((activity) => (
-                    <div key={activity.id} className="grid gap-2 py-3 text-sm md:grid-cols-4">
-                      <p className="text-zinc-100">{activity.name || "Без названия"}</p>
-                      <p className="text-zinc-300">{activity.sportType || "Activity"}</p>
-                      <p className="text-zinc-300">{formatDistance(activity.distance)}</p>
-                      <p className="text-zinc-300">{formatDuration(activity.movingTime)}</p>
-                    </div>
-                  ))}
-                </div>
+          <form onSubmit={importWorkoutFile} className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+            <h2 className="text-xl font-semibold">Импорт файла</h2>
+            <p className="mt-2 text-sm text-zinc-400">Поддерживаются форматы CSV, GPX и TCX.</p>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <input name="file" type="file" accept=".csv,.gpx,.tcx" className="ui-input max-w-xs" required />
+              <button className="ui-btn ui-btn-soft">Импортировать</button>
+            </div>
+          </form>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+            <h2 className="text-xl font-semibold">Интеграция через API-ключ</h2>
+            <p className="mt-2 text-zinc-300">Передавайте тренировки из любого приложения через ваш персональный endpoint.</p>
+            <p className="mt-2 text-sm text-zinc-400">
+              Endpoint: <span className="text-zinc-200">{API_BASE}{integration?.endpoint || "/api/workouts/integration/push/{API_KEY}"}</span>
+            </p>
+            <p className="mt-1 text-sm text-zinc-400">
+              Активный ключ: <span className="text-zinc-200">{integration?.apiKey?.keyPreview || "не создан"}</span>
+            </p>
+            {integration?.apiKey?.lastUsedAt && (
+              <p className="mt-1 text-sm text-zinc-500">Последнее использование: {new Date(integration.apiKey.lastUsedAt).toLocaleString("ru-RU")}</p>
+            )}
+            <button onClick={() => void regenerateApiKey()} className="ui-btn ui-btn-ghost mt-4">Сгенерировать новый ключ</button>
+            {newApiKey && (
+              <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-sm text-emerald-100">
+                Сохраните ключ сейчас: <span className="font-mono">{newApiKey}</span>
               </div>
             )}
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+            <h2 className="text-xl font-semibold">История тренировок</h2>
+            <div className="mt-4 divide-y divide-white/10 border-t border-white/10">
+              {workouts.map((workout) => (
+                <div key={workout.id} className="grid gap-2 py-3 text-sm md:grid-cols-5">
+                  <p className="text-zinc-100">{workout.title}</p>
+                  <p className="text-zinc-300">{workout.type}</p>
+                  <p className="text-zinc-300">{formatDistance(workout.distanceKm)}</p>
+                  <p className="text-zinc-300">{formatDuration(workout.durationMin)}</p>
+                  <p className="text-zinc-500">{new Date(workout.startedAt).toLocaleDateString("ru-RU")} | {workout.source}</p>
+                </div>
+              ))}
+              {!workouts.length && <p className="py-4 text-sm text-zinc-500">Пока нет тренировок. Добавьте первую вручную или импортом.</p>}
+            </div>
           </div>
         </section>
       )}

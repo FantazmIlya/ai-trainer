@@ -10,7 +10,7 @@ Use this checklist to move from "code-ready" to a verified production release.
    - exercise browse and admin CRUD
    - AI chat response flow
    - YooKassa test payment
-   - Strava connect/import/disconnect
+   - workout manual entry and file import
 3. `CHANGELOG.md` updated for release version.
 4. Release tag pushed (`vX.Y.Z`) for tested commit.
 
@@ -40,8 +40,8 @@ Use this checklist to move from "code-ready" to a verified production release.
 
 1. YooKassa test payment is created from UI.
 2. YooKassa webhook updates payment status in app.
-3. Strava OAuth callback returns to profile successfully.
-4. Activity import creates records in DB.
+3. Workout API key generation works in profile.
+4. Workout import creates records in DB.
 
 ## 4) Operational controls (same day)
 
