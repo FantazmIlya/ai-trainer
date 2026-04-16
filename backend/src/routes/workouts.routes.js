@@ -40,6 +40,7 @@ const wearableProviders = [
     mode: "FILE_EXPORT",
     summary: "Экспорт тренировки из Garmin Connect в GPX/TCX и импорт в кабинет.",
     formats: ["gpx", "tcx"],
+    imageUrl: "/images/wearable-garmin.jpg",
   },
   {
     id: "polar",
@@ -47,6 +48,7 @@ const wearableProviders = [
     mode: "FILE_EXPORT",
     summary: "Экспорт тренировок в GPX/CSV и загрузка в один клик через импорт файла.",
     formats: ["gpx", "csv"],
+    imageUrl: "/images/wearable-polar.jpg",
   },
   {
     id: "suunto",
@@ -54,6 +56,7 @@ const wearableProviders = [
     mode: "FILE_EXPORT",
     summary: "Выгрузка тренировок из Suunto App в GPX с последующим импортом.",
     formats: ["gpx"],
+    imageUrl: "/images/wearable-suunto.svg",
   },
   {
     id: "universal_api",
@@ -61,6 +64,7 @@ const wearableProviders = [
     mode: "API_PUSH",
     summary: "Подключение через персональный API-ключ для любого трекера с webhook или автоматизацией.",
     formats: ["json"],
+    imageUrl: "/images/wearable-api.svg",
   },
 ];
 

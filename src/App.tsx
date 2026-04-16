@@ -104,6 +104,7 @@ type WorkoutProvider = {
   mode: "FILE_EXPORT" | "API_PUSH";
   summary: string;
   formats: string[];
+  imageUrl?: string;
 };
 
 type ApiError = {
@@ -267,6 +268,7 @@ const FALLBACK_WEARABLE_PROVIDERS: WorkoutProvider[] = [
     mode: "FILE_EXPORT",
     summary: "Экспортируйте тренировку в GPX/TCX и загружайте в кабинет.",
     formats: ["gpx", "tcx"],
+    imageUrl: "/images/wearable-garmin.jpg",
   },
   {
     id: "polar",
@@ -274,6 +276,15 @@ const FALLBACK_WEARABLE_PROVIDERS: WorkoutProvider[] = [
     mode: "FILE_EXPORT",
     summary: "Поддерживается экспорт GPX/CSV и импорт через форму файла.",
     formats: ["gpx", "csv"],
+    imageUrl: "/images/wearable-polar.jpg",
+  },
+  {
+    id: "suunto",
+    name: "Suunto",
+    mode: "FILE_EXPORT",
+    summary: "Выгружайте активности из приложения в GPX и загружайте в кабинет.",
+    formats: ["gpx"],
+    imageUrl: "/images/wearable-suunto.svg",
   },
   {
     id: "universal_api",
@@ -281,6 +292,7 @@ const FALLBACK_WEARABLE_PROVIDERS: WorkoutProvider[] = [
     mode: "API_PUSH",
     summary: "Любое устройство или приложение может отправлять данные напрямую через API-ключ.",
     formats: ["json"],
+    imageUrl: "/images/wearable-api.svg",
   },
 ];
 
@@ -997,7 +1009,7 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
     if (normalized.includes("техник") || normalized.includes("присед") || normalized.includes("тяга")) {
       return "По технике: нейтральная спина, контроль амплитуды, выдох на усилии, без рывков. Напишите упражнение, и я дам пошаговый чек-лист.";
     }
-    return "Сервис AI временно отвечает в fallback-режиме. Для старта: 3 тренировки в неделю, 5-6 упражнений, 3 подхода по 8-12 повторений, прогрессия нагрузки раз в неделю.";
+    return "Сделаем базовый старт: 3 тренировки в неделю, 5-6 упражнений на сессию, 3 подхода по 8-12 повторений и постепенная прогрессия нагрузки каждую неделю.";
   }, []);
 
   const send = async (event: FormEvent<HTMLFormElement>) => {
@@ -1028,8 +1040,8 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
       );
 
       setMessages((previous) => [...previous, { role: "assistant", content: payload.reply }]);
-    } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : "Не удалось получить ответ");
+    } catch (_sendError) {
+      setError("Сейчас отвечаю в режиме встроенного тренера. Можно продолжать диалог.");
       setMessages((previous) => [...previous, { role: "assistant", content: buildOfflineReply(userMessage.content) }]);
     } finally {
       setSending(false);
@@ -1352,11 +1364,19 @@ function ProfilePage({
             <p className="mt-2 text-zinc-300">Подключайте Garmin, Polar, Suunto и любые другие трекеры через экспорт файла или API-ключ.</p>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {providers.map((provider) => (
-                <div key={provider.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
-                  <p className="font-medium text-zinc-100">{provider.name}</p>
-                  <p className="mt-1 text-sm text-zinc-400">{provider.summary}</p>
-                  <p className="mt-2 text-xs uppercase tracking-[0.14em] text-cyan-300">{provider.mode === "API_PUSH" ? "API push" : "Файловый импорт"}</p>
-                  <p className="mt-1 text-sm text-zinc-500">Форматы: {provider.formats.join(", ")}</p>
+                <div key={provider.id} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:grid-cols-[112px_1fr] sm:items-center">
+                  <img
+                    src={provider.imageUrl || "/images/hero-fitness.jpg"}
+                    alt={provider.name}
+                    className="h-24 w-full rounded-xl object-cover"
+                    loading="lazy"
+                  />
+                  <div>
+                    <p className="font-medium text-zinc-100">{provider.name}</p>
+                    <p className="mt-1 text-sm text-zinc-400">{provider.summary}</p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.14em] text-cyan-300">{provider.mode === "API_PUSH" ? "API push" : "Файловый импорт"}</p>
+                    <p className="mt-1 text-sm text-zinc-500">Форматы: {provider.formats.join(", ")}</p>
+                  </div>
                 </div>
               ))}
             </div>
