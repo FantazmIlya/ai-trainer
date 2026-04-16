@@ -18,12 +18,54 @@ const aiChatSchema = z.object({
   model: z.string().min(3).max(100).optional(),
 });
 
+function buildFallbackReply(messages) {
+  const lastUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content?.toLowerCase() || "";
+
+  if (lastUserMessage.includes("пит") || lastUserMessage.includes("еда") || lastUserMessage.includes("диет")) {
+    return [
+      "Короткий план по питанию на каждый день:",
+      "1) Белок в каждом приеме пищи: яйца, рыба, мясо, творог, бобовые.",
+      "2) Овощи 400-600 г в день и вода 25-35 мл на 1 кг веса.",
+      "3) Простая формула тарелки: 1/2 овощи, 1/4 белок, 1/4 сложные углеводы.",
+      "4) Если цель похудеть: дефицит 10-15% и контроль калорий 7-10 дней.",
+      "Если хотите, составлю меню на 3 дня под ваш вес, рост и цель.",
+    ].join("\n");
+  }
+
+  if (lastUserMessage.includes("техник") || lastUserMessage.includes("присед") || lastUserMessage.includes("тяга")) {
+    return [
+      "Базовые правила техники:",
+      "1) Нейтральная спина и контроль корпуса в каждом повторении.",
+      "2) Начните с легкого веса, пока не закрепите амплитуду и ритм.",
+      "3) Движение без рывков, выдох на усилии, вдох в эксцентрике.",
+      "4) Остановитесь при острой боли и снизьте нагрузку.",
+      "Напишите конкретное упражнение, и я дам пошаговый чек-лист под него.",
+    ].join("\n");
+  }
+
+  if (lastUserMessage.includes("мотива") || lastUserMessage.includes("лен") || lastUserMessage.includes("привыч")) {
+    return [
+      "План против срывов:",
+      "1) Минимум-действие: 15 минут тренировки в любой день, даже если нет сил.",
+      "2) Жесткий график: 3 фиксированных слота в неделю в календаре.",
+      "3) Отслеживайте прогресс: вес, повторения, самочувствие 1 раз в неделю.",
+      "4) Фокус на серии, а не идеале: цель - не пропускать 2 тренировки подряд.",
+      "Если хотите, соберу персональный план привычек на 14 дней.",
+    ].join("\n");
+  }
+
+  return [
+    "Я на связи. Сейчас внешний AI-провайдер недоступен, поэтому даю быстрый план как тренер:",
+    "1) 3 тренировки в неделю: день A (ноги+кор), день B (верх), день C (смешанная).",
+    "2) На тренировку: 5-6 упражнений, 3 подхода, 8-12 повторений.",
+    "3) Прогрессия: каждую неделю +1-2 повторения или +2.5-5% веса.",
+    "4) Сон 7-9 часов, вода и белок ежедневно.",
+    "Напишите цель (похудение, набор массы, выносливость), и я соберу персональную программу.",
+  ].join("\n");
+}
+
 router.post("/chat", authGuard, async (req, res, next) => {
   try {
-    if (!env.grokApiKey) {
-      return res.status(503).json({ message: "AI service is not configured" });
-    }
-
     const parsed = aiChatSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
@@ -47,6 +89,17 @@ router.post("/chat", authGuard, async (req, res, next) => {
     }
 
     const { messages, temperature, maxTokens, model } = parsed.data;
+
+    if (!env.grokApiKey) {
+      return res.json({
+        reply: buildFallbackReply(messages),
+        model: "local-fallback-coach",
+        usage: null,
+        requestId: null,
+        providerStatus: "fallback",
+      });
+    }
+
     const requestBody = {
       model: model || env.grokModel,
       messages,
@@ -66,16 +119,25 @@ router.post("/chat", authGuard, async (req, res, next) => {
 
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      return res.status(502).json({
-        message: "AI provider request failed",
+      return res.json({
+        reply: buildFallbackReply(messages),
+        model: "local-fallback-coach",
+        usage: null,
+        requestId: null,
         providerStatus: response.status,
-        providerError: payload,
+        providerError: payload || null,
       });
     }
 
     const reply = payload?.choices?.[0]?.message?.content;
     if (!reply) {
-      return res.status(502).json({ message: "AI provider returned an empty response" });
+      return res.json({
+        reply: buildFallbackReply(messages),
+        model: "local-fallback-coach",
+        usage: null,
+        requestId: payload?.id || null,
+        providerStatus: "empty_response",
+      });
     }
 
     return res.json({
@@ -85,6 +147,16 @@ router.post("/chat", authGuard, async (req, res, next) => {
       requestId: payload.id || null,
     });
   } catch (error) {
+    const fallbackMessages = aiChatSchema.safeParse(req.body);
+    if (fallbackMessages.success) {
+      return res.json({
+        reply: buildFallbackReply(fallbackMessages.data.messages),
+        model: "local-fallback-coach",
+        usage: null,
+        requestId: null,
+        providerStatus: "exception_fallback",
+      });
+    }
     return next(error);
   }
 });

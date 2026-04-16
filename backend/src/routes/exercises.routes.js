@@ -32,6 +32,48 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(12),
 });
 
+const demoExercises = [
+  {
+    id: "demo-squat",
+    title: "Приседания с собственным весом",
+    muscleGroup: "Ноги и ягодицы",
+    level: "BEGINNER",
+    description:
+      "Поставьте стопы чуть шире плеч, носки слегка в стороны. Опускайтесь до параллели бедер с полом, держите спину нейтральной и колени в направлении носков.",
+    imageUrl: "/images/ex-squat.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=aclHkVaku9U",
+    tags: ["ноги", "ягодицы", "база", "техника"],
+    isPublished: true,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "demo-pushup",
+    title: "Отжимания от пола",
+    muscleGroup: "Грудь, плечи, трицепс",
+    level: "BEGINNER",
+    description:
+      "Ладони под плечами, корпус в прямой линии. Опускайтесь до комфортной глубины, локти под углом около 45 градусов, без провалов в пояснице.",
+    imageUrl: "/images/ex-pushup.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=IODxDxX7oi4",
+    tags: ["верх", "грудь", "трицепс", "дом"],
+    isPublished: true,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "demo-plank",
+    title: "Планка на предплечьях",
+    muscleGroup: "Кор и стабилизаторы",
+    level: "BEGINNER",
+    description:
+      "Локти под плечами, таз не проваливается. Держите корпус напряженным, шея в нейтрали, дыхание спокойное. Начинайте с 20-40 секунд.",
+    imageUrl: "/images/ex-plank.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=pSHjTRCQxIw",
+    tags: ["пресс", "кор", "стабилизация"],
+    isPublished: true,
+    createdAt: new Date().toISOString(),
+  },
+];
+
 router.get("/", async (req, res, next) => {
   try {
     const parsed = listQuerySchema.safeParse(req.query);
@@ -64,6 +106,20 @@ router.get("/", async (req, res, next) => {
         take: limit,
       }),
     ]);
+
+    const noFilters = !search && !muscleGroup && !level && !published;
+    if (noFilters && total === 0) {
+      return res.json({
+        items: demoExercises,
+        pagination: {
+          page,
+          limit,
+          total: demoExercises.length,
+          pages: 1,
+        },
+        source: "demo_fallback",
+      });
+    }
 
     return res.json({
       items,

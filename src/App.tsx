@@ -104,6 +104,44 @@ type ApiError = {
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:4000").replace(/\/$/, "");
 const STORAGE_KEY = "ai_trainer_session_v1";
+const FALLBACK_EXERCISES: Exercise[] = [
+  {
+    id: "local-squat",
+    title: "Приседания с собственным весом",
+    muscleGroup: "Ноги и ягодицы",
+    level: "BEGINNER",
+    description:
+      "Стопы чуть шире плеч, корпус ровный. Опускайтесь до параллели бедер с полом, колени направлены в сторону носков. 3 подхода по 12-15 повторений.",
+    imageUrl: "/images/ex-squat.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=aclHkVaku9U",
+    tags: ["ноги", "ягодицы", "база"],
+    isPublished: true,
+  },
+  {
+    id: "local-pushup",
+    title: "Отжимания от пола",
+    muscleGroup: "Грудь, плечи, трицепс",
+    level: "BEGINNER",
+    description:
+      "Ладони под плечами, тело в одной линии. Опускайтесь контролируемо, выдыхайте на усилии. Начните с 3 подходов по 8-12 повторений.",
+    imageUrl: "/images/ex-pushup.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=IODxDxX7oi4",
+    tags: ["верх тела", "дом"],
+    isPublished: true,
+  },
+  {
+    id: "local-plank",
+    title: "Планка на предплечьях",
+    muscleGroup: "Кор и стабилизаторы",
+    level: "BEGINNER",
+    description:
+      "Локти под плечами, пресс напряжен, поясница нейтральная. Начните с 20-40 секунд, 3 подхода, постепенно увеличивая время.",
+    imageUrl: "/images/ex-plank.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=pSHjTRCQxIw",
+    tags: ["кор", "пресс", "стабилизация"],
+    isPublished: true,
+  },
+];
 
 function formatMoney(kopecks: number, currency: string) {
   return new Intl.NumberFormat("ru-RU", {
@@ -523,7 +561,12 @@ function HomePage({ session }: { session: Session | null }) {
   return (
     <main className="min-h-[calc(100vh-73px)] w-full overflow-hidden">
       <section className="relative border-b border-white/5 px-6 py-24 md:py-32">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(6,182,212,0.25),transparent_45%),radial-gradient(circle_at_80%_70%,rgba(59,130,246,0.2),transparent_40%)]" />
+        <img
+          src="/images/hero-fitness.jpg"
+          alt="Тренировка в современном фитнес-зале"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(5,8,12,0.88)_28%,rgba(5,8,12,0.5)_60%,rgba(5,8,12,0.72)_100%)]" />
         <div className="relative mx-auto w-full max-w-6xl">
           <motion.p
             initial={{ opacity: 0, y: 8 }}
@@ -545,7 +588,7 @@ function HomePage({ session }: { session: Session | null }) {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-6 max-w-2xl text-lg text-zinc-200"
+            className="mt-6 max-w-2xl text-lg text-zinc-100"
           >
             Ведите журнал тренировок, общайтесь с AI-ассистентом на базе Grok, изучайте библиотеку упражнений и
             управляйте подпиской через YooKassa.
@@ -692,6 +735,7 @@ function AuthPage({
 function ExercisesPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit, auth?: boolean) => Promise<T> }) {
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<Exercise[]>([]);
+  const [isDemoContent, setIsDemoContent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -705,9 +749,17 @@ function ExercisesPage({ apiFetch }: { apiFetch: <T>(path: string, init?: Reques
       }
 
       const payload = await apiFetch<{ items: Exercise[] }>(`/api/exercises?${params.toString()}`);
-      setItems(payload.items);
+      if (!payload.items.length && !query.trim()) {
+        setItems(FALLBACK_EXERCISES);
+        setIsDemoContent(true);
+      } else {
+        setItems(payload.items);
+        setIsDemoContent(false);
+      }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить упражнения");
+      setItems(FALLBACK_EXERCISES);
+      setIsDemoContent(true);
+      setError(loadError instanceof Error ? `${loadError.message}. Показан демонстрационный каталог.` : "Не удалось загрузить упражнения");
     } finally {
       setLoading(false);
     }
@@ -742,6 +794,9 @@ function ExercisesPage({ apiFetch }: { apiFetch: <T>(path: string, init?: Reques
 
       {loading && <p className="py-8 text-zinc-300">Загрузка упражнений...</p>}
       {error && <p className="py-8 text-rose-300">{error}</p>}
+      {isDemoContent && !error && (
+        <p className="mt-5 text-sm text-cyan-200">Сейчас отображается демонстрационный набор упражнений. Добавьте свои упражнения в админ-панели.</p>
+      )}
 
       <div className="mt-6 divide-y divide-white/10">
         <AnimatePresence>
@@ -793,6 +848,17 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
     },
   ]);
 
+  const buildOfflineReply = useCallback((userText: string) => {
+    const normalized = userText.toLowerCase();
+    if (normalized.includes("пит") || normalized.includes("еда")) {
+      return "Быстрый план питания: белок в каждом приеме пищи, 400-600 г овощей в день, контроль воды, и дефицит 10-15% при похудении.";
+    }
+    if (normalized.includes("техник") || normalized.includes("присед") || normalized.includes("тяга")) {
+      return "По технике: нейтральная спина, контроль амплитуды, выдох на усилии, без рывков. Напишите упражнение, и я дам пошаговый чек-лист.";
+    }
+    return "Сервис AI временно отвечает в fallback-режиме. Для старта: 3 тренировки в неделю, 5-6 упражнений, 3 подхода по 8-12 повторений, прогрессия нагрузки раз в неделю.";
+  }, []);
+
   const send = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!input.trim()) {
@@ -823,6 +889,7 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
       setMessages((previous) => [...previous, { role: "assistant", content: payload.reply }]);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : "Не удалось получить ответ");
+      setMessages((previous) => [...previous, { role: "assistant", content: buildOfflineReply(userMessage.content) }]);
     } finally {
       setSending(false);
     }
@@ -1016,6 +1083,34 @@ function ProfilePage({
             <p className="mt-2 text-zinc-300">Email: {profile.email}</p>
             <p className="mt-1 text-zinc-300">Роль: {profile.role}</p>
             <p className="mt-1 text-zinc-300">Премиум: {profile.hasPremiumAccess ? "Активен" : "Не активен"}</p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+            <h2 className="text-xl font-semibold">Готовые тренировочные шаблоны</h2>
+            <p className="mt-2 text-sm text-zinc-400">Выберите шаблон и добавляйте упражнения в свой недельный план.</p>
+            <div className="mt-5 divide-y divide-white/10 border-y border-white/10">
+              <div className="grid gap-4 py-4 md:grid-cols-[160px_1fr] md:items-center">
+                <img src="/images/ex-squat.jpg" alt="Ноги и ягодицы" className="h-28 w-full rounded-2xl object-cover" />
+                <div>
+                  <h3 className="font-medium text-zinc-100">Ноги и ягодицы</h3>
+                  <p className="mt-1 text-sm text-zinc-400">Присед, выпады, ягодичный мост. 45 минут, 3-4 упражнения.</p>
+                </div>
+              </div>
+              <div className="grid gap-4 py-4 md:grid-cols-[160px_1fr] md:items-center">
+                <img src="/images/ex-pushup.jpg" alt="Верх тела" className="h-28 w-full rounded-2xl object-cover" />
+                <div>
+                  <h3 className="font-medium text-zinc-100">Верх тела</h3>
+                  <p className="mt-1 text-sm text-zinc-400">Отжимания, тяги, жим над головой. 40 минут, 4 упражнения.</p>
+                </div>
+              </div>
+              <div className="grid gap-4 py-4 md:grid-cols-[160px_1fr] md:items-center">
+                <img src="/images/ex-plank.jpg" alt="Кор и выносливость" className="h-28 w-full rounded-2xl object-cover" />
+                <div>
+                  <h3 className="font-medium text-zinc-100">Кор и выносливость</h3>
+                  <p className="mt-1 text-sm text-zinc-400">Планка, интервальный кардио-блок, мобилизация. 30 минут.</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <form onSubmit={createManualWorkout} className="grid gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 md:grid-cols-2">
