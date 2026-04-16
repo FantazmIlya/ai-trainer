@@ -114,6 +114,9 @@ type ApiError = {
 type AiStatus = {
   mode: "grok" | "local";
   model: string;
+  reasonCode?: "FORCE_LOCAL" | "NO_API_KEY" | null;
+  hint?: string | null;
+  hasApiKey?: boolean;
 };
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:4000").replace(/\/$/, "");
@@ -263,6 +266,50 @@ const FALLBACK_WORKOUTS: Workout[] = [
     durationMin: 42,
     calories: 280,
     notes: "Присед, отжимания, планка",
+  },
+  {
+    id: "demo-workout-3",
+    source: "MANUAL",
+    title: "Интервальный велотренажер",
+    type: "Вело",
+    startedAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
+    distanceKm: 11.4,
+    durationMin: 36,
+    calories: 350,
+    notes: "6 интервалов 2/2, пульс 75-85% от max",
+  },
+  {
+    id: "demo-workout-4",
+    source: "API",
+    title: "Ходьба на улице",
+    type: "Ходьба",
+    startedAt: new Date(Date.now() - 1000 * 60 * 60 * 96).toISOString(),
+    distanceKm: 5.8,
+    durationMin: 59,
+    calories: 260,
+    notes: "Импортировано с носимого устройства",
+  },
+  {
+    id: "demo-workout-5",
+    source: "MANUAL",
+    title: "Силовая верх тела",
+    type: "Силовая",
+    startedAt: new Date(Date.now() - 1000 * 60 * 60 * 120).toISOString(),
+    distanceKm: null,
+    durationMin: 48,
+    calories: 300,
+    notes: "Тяга, жим, плечи, кор",
+  },
+  {
+    id: "demo-workout-6",
+    source: "FILE_IMPORT",
+    title: "Легкий кросс",
+    type: "Бег",
+    startedAt: new Date(Date.now() - 1000 * 60 * 60 * 144).toISOString(),
+    distanceKm: 6.1,
+    durationMin: 43,
+    calories: 410,
+    notes: "Ровный пульс, разговорный темп",
   },
 ];
 
@@ -1052,7 +1099,7 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<AiStatus>({ mode: "local", model: "local-fallback-coach" });
+  const [status, setStatus] = useState<AiStatus>({ mode: "local", model: "local-fallback-coach", reasonCode: "NO_API_KEY" });
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
     {
       role: "assistant",
@@ -1071,6 +1118,19 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
     }
     return "Сделаем базовый старт: 3 тренировки в неделю, 5-6 упражнений на сессию, 3 подхода по 8-12 повторений и постепенная прогрессия нагрузки каждую неделю.";
   }, []);
+
+  const setupHint = useMemo(() => {
+    if (status.mode === "grok") {
+      return null;
+    }
+    if (status.reasonCode === "FORCE_LOCAL") {
+      return "Сейчас включен принудительный локальный режим. Поставьте AI_FORCE_LOCAL=false и перезапустите backend.";
+    }
+    if (status.reasonCode === "NO_API_KEY") {
+      return "Не найден GROK_API_KEY в backend/.env. Добавьте ключ и перезапустите backend через PM2.";
+    }
+    return "Сейчас ответы идут через встроенного тренера. Это рабочий резервный режим.";
+  }, [status.mode, status.reasonCode]);
 
   useEffect(() => {
     let canceled = false;
@@ -1108,7 +1168,7 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
     setError(null);
 
     try {
-      const payload = await apiFetch<{ reply: string }>(
+      const payload = await apiFetch<{ reply: string; providerStatus?: string; model?: string }>(
         "/api/ai/chat",
         {
           method: "POST",
@@ -1122,6 +1182,9 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
       );
 
       setMessages((previous) => [...previous, { role: "assistant", content: payload.reply }]);
+      if (payload.model?.includes("local-fallback") || payload.providerStatus) {
+        setStatus((previous) => ({ ...previous, mode: "local", model: "local-fallback-coach" }));
+      }
     } catch (_sendError) {
       setError("Сейчас отвечаю в режиме встроенного тренера. Можно продолжать диалог.");
       setStatus({ mode: "local", model: "local-fallback-coach" });
@@ -1138,6 +1201,14 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
           <span className={`h-2 w-2 rounded-full ${status.mode === "grok" ? "bg-emerald-300" : "bg-amber-300"}`} />
           {status.mode === "grok" ? "AI режим: Grok" : "AI режим: встроенный тренер"}
         </div>
+
+        {setupHint && (
+          <div className="mb-4 rounded-2xl border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100">
+            <p>{setupHint}</p>
+            <p className="mt-1 text-xs text-amber-100/80">Модель: {status.model}</p>
+          </div>
+        )}
+
         <div className="max-h-[50vh] space-y-3 overflow-y-auto border-b border-white/10 pb-5">
           <AnimatePresence>
             {messages.map((message, index) => (
@@ -1201,6 +1272,54 @@ function ProfilePage({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showDevices, setShowDevices] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("base-3x");
+  const [liveWorkout, setLiveWorkout] = useState<{ templateId: string; startedAtMs: number; stepIndex: number } | null>(null);
+  const [liveNow, setLiveNow] = useState(Date.now());
+
+  const workoutTemplates = useMemo(
+    () => [
+      {
+        id: "base-3x",
+        title: "Базовая Full Body",
+        type: "Силовая",
+        targetDuration: 45,
+        imageUrl: "/images/ex-pushup.jpg",
+        steps: ["Разминка 7 минут", "Присед 3x12", "Отжимания 3x10", "Тяга 3x12", "Планка 3x40 сек", "Заминка 5 минут"],
+      },
+      {
+        id: "fat-loss-hiit",
+        title: "HIIT для жиросжигания",
+        type: "HIIT",
+        targetDuration: 26,
+        imageUrl: "/images/ex-burpee.jpg",
+        steps: ["Разминка 5 минут", "Берпи 30/30 x 6", "Скалолаз 30/30 x 6", "Выпады 12/12 x 3", "Планка 3x30 сек", "Заминка 4 минуты"],
+      },
+      {
+        id: "run-endurance",
+        title: "Выносливость бег",
+        type: "Бег",
+        targetDuration: 40,
+        imageUrl: "/images/ex-plank.jpg",
+        steps: ["Суставная разминка 5 минут", "Легкий бег 10 минут", "Темповой отрезок 20 минут", "Ходьба 5 минут", "Мобилизация 3 минуты"],
+      },
+    ],
+    [],
+  );
+
+  const selectedTemplate = workoutTemplates.find((template) => template.id === selectedTemplateId) || workoutTemplates[0];
+  const activeTemplate = liveWorkout
+    ? workoutTemplates.find((template) => template.id === liveWorkout.templateId) || workoutTemplates[0]
+    : null;
+  const elapsedMin = liveWorkout ? Math.max(1, Math.round((liveNow - liveWorkout.startedAtMs) / 60000)) : 0;
+  const workoutsInWeek = useMemo(
+    () => workouts.filter((item) => Date.now() - new Date(item.startedAt).getTime() <= 1000 * 60 * 60 * 24 * 7).length,
+    [workouts],
+  );
+  const weekDuration = useMemo(() => workouts.reduce((sum, item) => sum + (item.durationMin || 0), 0), [workouts]);
+  const weekDistance = useMemo(() => workouts.reduce((sum, item) => sum + (item.distanceKm || 0), 0), [workouts]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1237,6 +1356,14 @@ function ProfilePage({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!liveWorkout) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => setLiveNow(Date.now()), 15000);
+    return () => window.clearInterval(timer);
+  }, [liveWorkout]);
 
   const createManualWorkout = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1323,174 +1450,221 @@ function ProfilePage({
     }
   };
 
-  const workoutTemplates = [
-    {
-      title: "Ноги и ягодицы",
-      imageUrl: "/images/ex-lunge.jpg",
-      summary: "Присед, выпады, ягодичный мост, румынская тяга. 45-55 минут.",
-    },
-    {
-      title: "Верх тела",
-      imageUrl: "/images/ex-row.jpg",
-      summary: "Отжимания, тяга к поясу, жим гантелей сидя, планка. 40-50 минут.",
-    },
-    {
-      title: "Кор и мобильность",
-      imageUrl: "/images/ex-deadbug.jpg",
-      summary: "Dead bug, планка, скалолаз, динамическая растяжка. 25-35 минут.",
-    },
-    {
-      title: "HIIT сжигание",
-      imageUrl: "/images/ex-burpee.jpg",
-      summary: "Берпи, прыжки, выпады, интервалы 30/30. 20-25 минут.",
-    },
-  ];
+  const startWorkout = () => {
+    setError(null);
+    setSuccess(null);
+    setLiveNow(Date.now());
+    setLiveWorkout({ templateId: selectedTemplate.id, startedAtMs: Date.now(), stepIndex: 0 });
+  };
+
+  const nextWorkoutStep = () => {
+    if (!liveWorkout || !activeTemplate) {
+      return;
+    }
+    const next = Math.min(activeTemplate.steps.length - 1, liveWorkout.stepIndex + 1);
+    setLiveWorkout({ ...liveWorkout, stepIndex: next });
+  };
+
+  const finishWorkoutAndSave = async () => {
+    if (!liveWorkout || !activeTemplate) {
+      return;
+    }
+
+    try {
+      await apiFetch(
+        "/api/workouts/manual",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: `${activeTemplate.title} (выполнено)`,
+            type: activeTemplate.type,
+            startedAt: new Date(liveWorkout.startedAtMs).toISOString(),
+            durationMin: Math.max(activeTemplate.targetDuration, elapsedMin),
+            notes: `Завершено по шаблону. Шагов: ${activeTemplate.steps.length}`,
+          }),
+        },
+        true,
+      );
+
+      setLiveWorkout(null);
+      setSuccess("Тренировка завершена и записана в журнал.");
+      await load();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Не удалось сохранить тренировку");
+    }
+  };
+
+  const stopWorkoutWithoutSaving = () => {
+    setLiveWorkout(null);
+    setSuccess("Сессия остановлена. Можно начать заново в любой момент.");
+  };
 
   return (
-    <Page title="Личный кабинет" subtitle="Управление профилем и журналом тренировок без зависимости от внешних платформ.">
+    <Page title="Личный кабинет" subtitle="Планируйте тренировку, выполняйте по шагам и фиксируйте результат без перегруженного интерфейса.">
       {loading && <p className="text-zinc-300">Загрузка данных...</p>}
       {error && <p className="mb-5 text-rose-300">{error}</p>}
       {success && <p className="mb-5 text-emerald-300">{success}</p>}
 
       {profile && (
         <section className="space-y-8">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-            <h2 className="text-xl font-semibold">Профиль</h2>
-            <p className="mt-2 text-zinc-300">Email: {profile.email}</p>
-            <p className="mt-1 text-zinc-300">Роль: {profile.role}</p>
-            <p className="mt-1 text-zinc-300">Премиум: {profile.hasPremiumAccess ? "Активен" : "Не активен"}</p>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-            <h2 className="text-xl font-semibold">Готовые тренировочные шаблоны</h2>
-            <p className="mt-2 text-sm text-zinc-400">Выберите шаблон и добавляйте упражнения в свой недельный план.</p>
-            <div className="mt-5 divide-y divide-white/10 border-y border-white/10">
-              {workoutTemplates.map((template) => (
-                <div key={template.title} className="grid gap-4 py-4 md:grid-cols-[160px_1fr] md:items-center">
-                  <img src={template.imageUrl} alt={template.title} className="h-28 w-full rounded-2xl object-cover" />
-                  <div>
-                    <h3 className="font-medium text-zinc-100">{template.title}</h3>
-                    <p className="mt-1 text-sm text-zinc-400">{template.summary}</p>
-                  </div>
-                </div>
-              ))}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+              <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Профиль</p>
+              <p className="mt-2 text-sm text-zinc-200">{profile.email}</p>
+              <p className="mt-1 text-xs text-zinc-400">Премиум: {profile.hasPremiumAccess ? "Активен" : "Не активен"}</p>
+            </div>
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+              <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Тренировок за 7 дней</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{workoutsInWeek}</p>
+            </div>
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+              <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Общее время</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{formatDuration(weekDuration)}</p>
+            </div>
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+              <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Общая дистанция</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{formatDistance(weekDistance)}</p>
             </div>
           </div>
 
-          <form onSubmit={createManualWorkout} className="grid gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 md:grid-cols-2">
-            <h2 className="md:col-span-2 text-xl font-semibold">Добавить тренировку вручную</h2>
-            <input
-              className="ui-input"
-              placeholder="Название"
-              value={manualForm.title}
-              onChange={(event) => setManualForm((previous) => ({ ...previous, title: event.target.value }))}
-              required
-            />
-            <input
-              className="ui-input"
-              placeholder="Тип (бег, вело, силовая)"
-              value={manualForm.type}
-              onChange={(event) => setManualForm((previous) => ({ ...previous, type: event.target.value }))}
-              required
-            />
-            <input
-              className="ui-input"
-              type="datetime-local"
-              value={manualForm.startedAt}
-              onChange={(event) => setManualForm((previous) => ({ ...previous, startedAt: event.target.value }))}
-              required
-            />
-            <input
-              className="ui-input"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Дистанция, км"
-              value={manualForm.distanceKm}
-              onChange={(event) => setManualForm((previous) => ({ ...previous, distanceKm: event.target.value }))}
-            />
-            <input
-              className="ui-input"
-              type="number"
-              min="0"
-              step="1"
-              placeholder="Длительность, мин"
-              value={manualForm.durationMin}
-              onChange={(event) => setManualForm((previous) => ({ ...previous, durationMin: event.target.value }))}
-            />
-            <input
-              className="ui-input"
-              type="number"
-              min="0"
-              step="1"
-              placeholder="Калории"
-              value={manualForm.calories}
-              onChange={(event) => setManualForm((previous) => ({ ...previous, calories: event.target.value }))}
-            />
-            <textarea
-              className="ui-textarea md:col-span-2"
-              rows={3}
-              placeholder="Комментарий"
-              value={manualForm.notes}
-              onChange={(event) => setManualForm((previous) => ({ ...previous, notes: event.target.value }))}
-            />
-            <button className="ui-btn ui-btn-soft md:col-span-2">Сохранить тренировку</button>
-          </form>
-
-          <form onSubmit={importWorkoutFile} className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-            <h2 className="text-xl font-semibold">Импорт файла</h2>
-            <p className="mt-2 text-sm text-zinc-400">Поддерживаются форматы CSV, GPX и TCX.</p>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <input name="file" type="file" accept=".csv,.gpx,.tcx" className="ui-input max-w-xs" required />
-              <button className="ui-btn ui-btn-soft">Импортировать</button>
+          <div className="grid gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 lg:grid-cols-[1.15fr_1fr]">
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-cyan-300">Шаг 1. Выполнение тренировки</p>
+              <h2 className="mt-2 text-xl font-semibold">План на сегодня</h2>
+              <p className="mt-2 text-sm text-zinc-400">Выберите шаблон, нажмите старт и ведите тренировку по шагам.</p>
+              <div className="mt-4 grid gap-4 md:grid-cols-[220px_1fr]">
+                <img src={selectedTemplate.imageUrl} alt={selectedTemplate.title} className="h-36 w-full rounded-2xl object-cover" />
+                <div>
+                  <select value={selectedTemplateId} onChange={(event) => setSelectedTemplateId(event.target.value)} className="ui-select">
+                    {workoutTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.title} ({template.targetDuration} мин)
+                      </option>
+                    ))}
+                  </select>
+                  <ol className="mt-3 space-y-1.5 text-sm text-zinc-300">
+                    {selectedTemplate.steps.map((step, index) => (
+                      <li key={step} className="rounded-xl bg-white/[0.03] px-3 py-2">
+                        {index + 1}. {step}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
+              {!liveWorkout && (
+                <button onClick={startWorkout} className="ui-btn ui-btn-primary mt-4">
+                  Начать тренировку
+                </button>
+              )}
             </div>
-          </form>
+
+            <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4">
+              <p className="text-xs uppercase tracking-[0.14em] text-cyan-200">Текущая сессия</p>
+              {!liveWorkout || !activeTemplate ? (
+                <p className="mt-2 text-sm text-zinc-200">Сессия не запущена. После старта здесь появится текущий шаг и таймер.</p>
+              ) : (
+                <>
+                  <h3 className="mt-2 text-lg font-semibold text-white">{activeTemplate.title}</h3>
+                  <p className="mt-1 text-sm text-cyan-100">Прошло: {formatDuration(elapsedMin)}</p>
+                  <p className="mt-4 text-sm text-zinc-200">
+                    Шаг {liveWorkout.stepIndex + 1} из {activeTemplate.steps.length}: {activeTemplate.steps[liveWorkout.stepIndex]}
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button onClick={nextWorkoutStep} className="ui-btn ui-btn-soft" disabled={liveWorkout.stepIndex >= activeTemplate.steps.length - 1}>
+                      Следующий шаг
+                    </button>
+                    <button onClick={() => void finishWorkoutAndSave()} className="ui-btn ui-btn-primary">
+                      Завершить и сохранить
+                    </button>
+                    <button onClick={stopWorkoutWithoutSaving} className="ui-btn ui-btn-ghost">
+                      Остановить
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-            <h2 className="text-xl font-semibold">Подключение носимых устройств</h2>
-            <p className="mt-2 text-zinc-300">Подключайте Garmin, Polar, Suunto и любые другие трекеры через экспорт файла или API-ключ.</p>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {providers.map((provider) => (
-                <div key={provider.id} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:grid-cols-[112px_1fr] sm:items-center">
-                  <img
-                    src={provider.imageUrl || "/images/hero-fitness.jpg"}
-                    alt={provider.name}
-                    className="h-24 w-full rounded-xl object-cover"
-                    loading="lazy"
-                  />
-                  <div>
-                    <p className="font-medium text-zinc-100">{provider.name}</p>
-                    <p className="mt-1 text-sm text-zinc-400">{provider.summary}</p>
-                    <p className="mt-2 text-xs uppercase tracking-[0.14em] text-cyan-300">{provider.mode === "API_PUSH" ? "API push" : "Файловый импорт"}</p>
-                    <p className="mt-1 text-sm text-zinc-500">Форматы: {provider.formats.join(", ")}</p>
-                  </div>
-                </div>
-              ))}
+            <p className="text-xs uppercase tracking-[0.14em] text-cyan-300">Шаг 2. Фиксация результата</p>
+            <h2 className="mt-2 text-xl font-semibold">Добавление тренировок</h2>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button onClick={() => setShowQuickAdd((value) => !value)} className={`ui-btn ${showQuickAdd ? "ui-btn-soft" : "ui-btn-ghost"}`}>
+                Быстро добавить вручную
+              </button>
+              <button onClick={() => setShowImport((value) => !value)} className={`ui-btn ${showImport ? "ui-btn-soft" : "ui-btn-ghost"}`}>
+                Импорт файла
+              </button>
+              <button onClick={() => setShowDevices((value) => !value)} className={`ui-btn ${showDevices ? "ui-btn-soft" : "ui-btn-ghost"}`}>
+                Подключить устройство
+              </button>
             </div>
-            <p className="mt-2 text-sm text-zinc-400">
-              Endpoint: <span className="text-zinc-200">{API_BASE}{integration?.endpoint || "/api/workouts/integration/push/{API_KEY}"}</span>
-            </p>
-            <p className="mt-1 text-sm text-zinc-400">
-              Активный ключ: <span className="text-zinc-200">{integration?.apiKey?.keyPreview || "не создан"}</span>
-            </p>
-            <p className="mt-1 text-sm text-zinc-500">Пример отправки: POST {API_BASE}/api/workouts/integration/push/&lt;API_KEY&gt;</p>
-            {integration?.apiKey?.lastUsedAt && (
-              <p className="mt-1 text-sm text-zinc-500">Последнее использование: {new Date(integration.apiKey.lastUsedAt).toLocaleString("ru-RU")}</p>
+
+            {showQuickAdd && (
+              <form onSubmit={createManualWorkout} className="mt-5 grid gap-3 md:grid-cols-2">
+                <input className="ui-input" placeholder="Название" value={manualForm.title} onChange={(event) => setManualForm((previous) => ({ ...previous, title: event.target.value }))} required />
+                <input className="ui-input" placeholder="Тип (бег, вело, силовая)" value={manualForm.type} onChange={(event) => setManualForm((previous) => ({ ...previous, type: event.target.value }))} required />
+                <input className="ui-input" type="datetime-local" value={manualForm.startedAt} onChange={(event) => setManualForm((previous) => ({ ...previous, startedAt: event.target.value }))} required />
+                <input className="ui-input" type="number" min="0" step="1" placeholder="Длительность, мин" value={manualForm.durationMin} onChange={(event) => setManualForm((previous) => ({ ...previous, durationMin: event.target.value }))} />
+                <input className="ui-input" type="number" min="0" step="0.01" placeholder="Дистанция, км" value={manualForm.distanceKm} onChange={(event) => setManualForm((previous) => ({ ...previous, distanceKm: event.target.value }))} />
+                <input className="ui-input" type="number" min="0" step="1" placeholder="Калории" value={manualForm.calories} onChange={(event) => setManualForm((previous) => ({ ...previous, calories: event.target.value }))} />
+                <textarea className="ui-textarea md:col-span-2" rows={3} placeholder="Комментарий" value={manualForm.notes} onChange={(event) => setManualForm((previous) => ({ ...previous, notes: event.target.value }))} />
+                <button className="ui-btn ui-btn-primary md:col-span-2">Сохранить тренировку</button>
+              </form>
             )}
-            <button onClick={() => void regenerateApiKey()} className="ui-btn ui-btn-ghost mt-4">Сгенерировать новый ключ</button>
-            {newApiKey && (
-              <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-sm text-emerald-100">
-                Сохраните ключ сейчас: <span className="font-mono">{newApiKey}</span>
+
+            {showImport && (
+              <form onSubmit={importWorkoutFile} className="mt-5 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                <p className="text-sm text-zinc-300">Поддерживаются форматы CSV, GPX и TCX.</p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <input name="file" type="file" accept=".csv,.gpx,.tcx" className="ui-input max-w-xs" required />
+                  <button className="ui-btn ui-btn-soft">Импортировать файл</button>
+                </div>
+              </form>
+            )}
+
+            {showDevices && (
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                <p className="text-sm text-zinc-300">Выберите устройство и используйте один из способов: импорт файла или API-ключ.</p>
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  {providers.map((provider) => (
+                    <div key={provider.id} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-[88px_1fr] sm:items-center">
+                      <img src={provider.imageUrl || "/images/hero-fitness.jpg"} alt={provider.name} className="h-20 w-full rounded-xl object-cover" loading="lazy" />
+                      <div>
+                        <p className="font-medium text-zinc-100">{provider.name}</p>
+                        <p className="mt-1 text-xs text-zinc-400">{provider.summary}</p>
+                        <p className="mt-1 text-xs text-cyan-300">{provider.mode === "API_PUSH" ? "API push" : `Файлы: ${provider.formats.join(", ")}`}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-4 text-sm text-zinc-400">Endpoint: <span className="text-zinc-200">{API_BASE}{integration?.endpoint || "/api/workouts/integration/push/{API_KEY}"}</span></p>
+                <p className="mt-1 text-sm text-zinc-400">Активный ключ: <span className="text-zinc-200">{integration?.apiKey?.keyPreview || "не создан"}</span></p>
+                {integration?.apiKey?.lastUsedAt && (
+                  <p className="mt-1 text-xs text-zinc-500">Последнее использование: {new Date(integration.apiKey.lastUsedAt).toLocaleString("ru-RU")}</p>
+                )}
+                <button onClick={() => void regenerateApiKey()} className="ui-btn ui-btn-ghost mt-3">Сгенерировать новый API-ключ</button>
+                {newApiKey && (
+                  <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-sm text-emerald-100">
+                    Сохраните ключ сейчас: <span className="font-mono">{newApiKey}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-            <h2 className="text-xl font-semibold">История тренировок</h2>
-            {isDemoWorkouts && (
-              <p className="mt-2 text-sm text-cyan-200">Пока у вас нет собственных тренировок, поэтому показаны демонстрационные примеры.</p>
-            )}
-            <div className="mt-4 divide-y divide-white/10 border-t border-white/10">
+            <p className="text-xs uppercase tracking-[0.14em] text-cyan-300">Шаг 3. Прогресс</p>
+            <h2 className="mt-2 text-xl font-semibold">История тренировок</h2>
+            {isDemoWorkouts && <p className="mt-2 text-sm text-cyan-200">Пока у вас нет собственных тренировок, поэтому показаны демонстрационные примеры.</p>}
+            <div className="mt-4 hidden grid-cols-5 border-b border-white/10 pb-2 text-xs uppercase tracking-[0.12em] text-zinc-500 md:grid">
+              <p>Название</p>
+              <p>Тип</p>
+              <p>Дистанция</p>
+              <p>Длительность</p>
+              <p>Дата / источник</p>
+            </div>
+            <div className="divide-y divide-white/10">
               {workouts.map((workout) => (
                 <div key={workout.id} className="grid gap-2 py-3 text-sm md:grid-cols-5">
                   <p className="text-zinc-100">{workout.title}</p>

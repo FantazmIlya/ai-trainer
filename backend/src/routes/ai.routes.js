@@ -25,6 +25,36 @@ function getAiMode() {
   return "grok";
 }
 
+function getAiStatusPayload() {
+  if (env.aiForceLocal) {
+    return {
+      mode: "local",
+      model: "local-fallback-coach",
+      reasonCode: "FORCE_LOCAL",
+      hint: "Выключите AI_FORCE_LOCAL в backend/.env и перезапустите PM2 с --update-env.",
+      hasApiKey: Boolean(env.grokApiKey),
+    };
+  }
+
+  if (!env.grokApiKey) {
+    return {
+      mode: "local",
+      model: "local-fallback-coach",
+      reasonCode: "NO_API_KEY",
+      hint: "Добавьте GROK_API_KEY в backend/.env и перезапустите PM2 с --update-env.",
+      hasApiKey: false,
+    };
+  }
+
+  return {
+    mode: "grok",
+    model: env.grokModel,
+    reasonCode: null,
+    hint: null,
+    hasApiKey: true,
+  };
+}
+
 function buildFallbackReply(messages) {
   const lastUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content?.toLowerCase() || "";
 
@@ -169,11 +199,7 @@ router.post("/chat", authGuard, async (req, res, next) => {
 });
 
 router.get("/status", authGuard, (_req, res) => {
-  const mode = getAiMode();
-  return res.json({
-    mode,
-    model: mode === "grok" ? env.grokModel : "local-fallback-coach",
-  });
+  return res.json(getAiStatusPayload());
 });
 
 export default router;
