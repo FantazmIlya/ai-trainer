@@ -165,18 +165,31 @@ function saveSession(session: Session | null) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
 
+function isSameUser(a: User, b: User) {
+  return (
+    a.id === b.id &&
+    a.email === b.email &&
+    a.role === b.role &&
+    a.status === b.status &&
+    a.hasPremiumAccess === b.hasPremiumAccess &&
+    JSON.stringify(a.activeSubscription || null) === JSON.stringify(b.activeSubscription || null)
+  );
+}
+
 function AppShell() {
   const [session, setSession] = useState<Session | null>(() => loadSession());
   const [authLoading, setAuthLoading] = useState(true);
   const navigate = useNavigate();
+  const accessToken = session?.accessToken || null;
+  const refreshToken = session?.refreshToken || null;
 
   const logout = useCallback(async () => {
-    if (session?.refreshToken) {
+    if (refreshToken) {
       try {
         await fetch(`${API_BASE}/api/auth/logout`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken: session.refreshToken }),
+          body: JSON.stringify({ refreshToken }),
         });
       } catch {
         // Ignored on purpose: local logout must work even if backend is unavailable.
@@ -185,7 +198,7 @@ function AppShell() {
     setSession(null);
     saveSession(null);
     navigate("/auth", { replace: true });
-  }, [navigate, session?.refreshToken]);
+  }, [navigate, refreshToken]);
 
   const apiFetch = useCallback(
     async <T,>(path: string, init?: RequestInit, auth = false): Promise<T> => {
@@ -206,21 +219,26 @@ function AppShell() {
         });
       };
 
-      let response = await execute(session?.accessToken || null);
+      let response = await execute(accessToken);
 
-      if (response.status === 401 && auth && session?.refreshToken) {
+      if (response.status === 401 && auth && refreshToken) {
         const refreshResponse = await fetch(`${API_BASE}/api/auth/refresh`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken: session.refreshToken }),
+          body: JSON.stringify({ refreshToken }),
         });
 
         if (refreshResponse.ok) {
           const refreshPayload = (await parseResponse(refreshResponse)) as { accessToken: string };
-          const nextSession = { ...session, accessToken: refreshPayload.accessToken };
-          setSession(nextSession);
-          saveSession(nextSession);
-          response = await execute(nextSession.accessToken);
+          setSession((prev) => {
+            if (!prev) {
+              return prev;
+            }
+            const nextSession = { ...prev, accessToken: refreshPayload.accessToken };
+            saveSession(nextSession);
+            return nextSession;
+          });
+          response = await execute(refreshPayload.accessToken);
         } else {
           setSession(null);
           saveSession(null);
@@ -235,27 +253,35 @@ function AppShell() {
       }
       return payload as T;
     },
-    [session],
+    [accessToken, refreshToken],
   );
 
   const refreshCurrentUser = useCallback(async () => {
-    if (!session?.accessToken) {
+    if (!accessToken) {
       setAuthLoading(false);
       return;
     }
 
     try {
       const payload = await apiFetch<{ user: User }>("/api/auth/me", undefined, true);
-      const nextSession = { ...session, user: payload.user };
-      setSession(nextSession);
-      saveSession(nextSession);
+      setSession((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        if (isSameUser(prev.user, payload.user)) {
+          return prev;
+        }
+        const nextSession = { ...prev, user: payload.user };
+        saveSession(nextSession);
+        return nextSession;
+      });
     } catch {
       setSession(null);
       saveSession(null);
     } finally {
       setAuthLoading(false);
     }
-  }, [apiFetch, session]);
+  }, [accessToken, apiFetch]);
 
   useEffect(() => {
     refreshCurrentUser();
