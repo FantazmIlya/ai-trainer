@@ -1,0 +1,240 @@
+name: Changelog Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate_changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate Keep a Changelog structure
+        id: validate
+        run: |
+          set +e
+          node scripts/validate-changelog.mjs > changelog-check.log 2>&1
+          STATUS=$?
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          cat changelog-check.log
+          exit 0
+
+      - name: Comment PR with changelog hints
+        if: github.event_name == 'pull_request' && steps.validate.outputs.status != '0'
+        uses: actions/github-script@v7
+        env:
+          VALIDATION_STATUS: ${{ steps.validate.outputs.status }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- changelog-validator-comment -->';
+            const issueNumber = context.payload.pull_request.number;
+            const rawLog = fs.readFileSync('changelog-check.log', 'utf8').trim();
+            const trimmedLog = rawLog.length > 4000 ? `${rawLog.slice(0, 4000)}\n... (truncated)` : rawLog;
+
+            function parseFirstReleaseVersion(changelogText) {
+              const normalized = changelogText.replace(/\r\n/g, '\n');
+              const lines = normalized.split('\n');
+              for (const line of lines) {
+                const match = line.match(/^##\s+\[(.+?)\](?:\s+-\s+\d{4}-\d{2}-\d{2})?\s*$/);
+                if (!match) {
+                  continue;
+                }
+                const version = match[1].replace(/^v/, '');
+                if (version.toLowerCase() !== 'unreleased') {
+                  return version;
+                }
+              }
+              return null;
+            }
+
+            function parseSemver(version) {
+              const match = String(version || '').match(/^(\d+)\.(\d+)\.(\d+)(?:[.-][0-9A-Za-z.-]+)?$/);
+              if (!match) {
+                return null;
+              }
+
+              return {
+                major: Number(match[1]),
+                minor: Number(match[2]),
+                patch: Number(match[3]),
+              };
+            }
+
+            function bumpSemver(version, level) {
+              const parsed = parseSemver(version);
+              if (!parsed) {
+                return '0.1.0';
+              }
+
+              if (level === 'major') {
+                return `${parsed.major + 1}.0.0`;
+              }
+
+              if (level === 'minor') {
+                return `${parsed.major}.${parsed.minor + 1}.0`;
+              }
+
+              return `${parsed.major}.${parsed.minor}.${parsed.patch + 1}`;
+            }
+
+            function findSectionBody(changelogText, heading) {
+              const normalized = changelogText.replace(/\r\n/g, '\n');
+              const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const headingRegex = new RegExp(`^##\\s+\\[${escaped}\\](?:\\s+-\\s+\\d{4}-\\d{2}-\\d{2})?\\s*$`, 'm');
+              const headingMatch = headingRegex.exec(normalized);
+              if (!headingMatch) {
+                return '';
+              }
+
+              const start = headingMatch.index + headingMatch[0].length;
+              const rest = normalized.slice(start);
+              const nextHeading = /^##\s+\[.+?\](?:\s+-\s+\d{4}-\d{2}-\d{2})?\s*$/m.exec(rest);
+              const end = nextHeading ? start + nextHeading.index : normalized.length;
+              return normalized.slice(start, end).trim();
+            }
+
+            function detectRequiredBumpFromUnreleased(changelogText, prTitle) {
+              const unreleasedBody = findSectionBody(changelogText, 'Unreleased');
+              const coreBody = unreleasedBody || '';
+              const hasBreaking = /(\bbreaking\b|!:|\bbreaking change\b)/i.test(`${prTitle}\n${coreBody}`);
+              if (hasBreaking) {
+                return 'major';
+              }
+
+              const addedSectionMatch = coreBody.match(/###\s+Added\s*([\s\S]*?)(?=\n###\s+|$)/i);
+              const addedBody = addedSectionMatch ? addedSectionMatch[1] : '';
+              const hasFeatureBullets = /^\s*-\s+.+$/m.test(addedBody) && !/^\s*-\s+(none\.?|n\/a|tbd|no changes)\s*$/im.test(addedBody.trim());
+              if (hasFeatureBullets || /(^|\W)feat(\(|:|\W)/i.test(prTitle)) {
+                return 'minor';
+              }
+
+              return 'patch';
+            }
+
+            const prTitle = context.payload.pull_request.title || '';
+            const branchName = context.payload.pull_request.head?.ref || '';
+            const explicitTag = (prTitle.match(/v(\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?)/) || branchName.match(/v(\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?)/) || [])[1] || null;
+            const changelogContent = fs.existsSync('CHANGELOG.md') ? fs.readFileSync('CHANGELOG.md', 'utf8') : '';
+            const firstRelease = parseFirstReleaseVersion(changelogContent);
+            const expectedBump = detectRequiredBumpFromUnreleased(changelogContent, prTitle);
+            const suggestedVersion = explicitTag || (firstRelease ? bumpSemver(firstRelease, expectedBump) : '0.1.0');
+            const suggestedDate = new Date().toISOString().slice(0, 10);
+            const releaseTemplate = [
+              `## [${suggestedVersion}] - ${suggestedDate}`,
+              '',
+              '### Added',
+              '',
+              '- <describe new functionality>',
+              '',
+              '### Changed',
+              '',
+              '- <describe changed behavior>',
+              '',
+              '### Fixed',
+              '',
+              '- <describe bug fix>',
+            ].join('\n');
+
+            const body = [
+              marker,
+              '## Changelog check failed',
+              '',
+              `Validation status: ${process.env.VALIDATION_STATUS}`,
+              '',
+              'Please fix the changelog before merge. Quick checklist:',
+              '- Keep `## [Unreleased]` in the file.',
+              '- Use release heading format `## [X.Y.Z] - YYYY-MM-DD`.',
+              '- Add subsections `### Added`, `### Changed`, `### Fixed`.',
+              '- Add real bullet points under each required subsection.',
+              '- Do not use placeholders like `None.`, `TBD`, `N/A`.',
+              '- Suggested semver bump for this PR is `' + expectedBump + '` (breaking -> major, feat/Added -> minor, fix -> patch).',
+              '',
+              '### Suggested release section template',
+              '```markdown',
+              releaseTemplate,
+              '```',
+              '',
+              '### Validator output',
+              '```',
+              trimmedLog || 'No output captured.',
+              '```',
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) => {
+              return comment.user.type === 'Bot' && comment.body.includes(marker);
+            });
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body,
+              });
+            }
+
+      - name: Remove stale changelog warning comment
+        if: github.event_name == 'pull_request' && steps.validate.outputs.status == '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- changelog-validator-comment -->';
+            const issueNumber = context.payload.pull_request.number;
+            const { owner, repo } = context.repo;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) => {
+              return comment.user.type === 'Bot' && comment.body.includes(marker);
+            });
+
+            if (existing) {
+              await github.rest.issues.deleteComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+              });
+            }
+
+      - name: Fail workflow if validation failed
+        if: steps.validate.outputs.status != '0'
+        run: |
+          echo "Changelog validation failed"
+          exit 1
