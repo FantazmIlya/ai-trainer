@@ -18,6 +18,13 @@ const aiChatSchema = z.object({
   model: z.string().min(3).max(100).optional(),
 });
 
+function getAiMode() {
+  if (env.aiForceLocal || !env.grokApiKey) {
+    return "local";
+  }
+  return "grok";
+}
+
 function buildFallbackReply(messages) {
   const lastUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content?.toLowerCase() || "";
 
@@ -90,7 +97,7 @@ router.post("/chat", authGuard, async (req, res, next) => {
 
     const { messages, temperature, maxTokens, model } = parsed.data;
 
-    if (!env.grokApiKey) {
+    if (getAiMode() === "local") {
       return res.json({
         reply: buildFallbackReply(messages),
         model: "local-fallback-coach",
@@ -159,6 +166,14 @@ router.post("/chat", authGuard, async (req, res, next) => {
     }
     return next(error);
   }
+});
+
+router.get("/status", authGuard, (_req, res) => {
+  const mode = getAiMode();
+  return res.json({
+    mode,
+    model: mode === "grok" ? env.grokModel : "local-fallback-coach",
+  });
 });
 
 export default router;

@@ -111,6 +111,11 @@ type ApiError = {
   message: string;
 };
 
+type AiStatus = {
+  mode: "grok" | "local";
+  model: string;
+};
+
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:4000").replace(/\/$/, "");
 const STORAGE_KEY = "ai_trainer_session_v1";
 const FALLBACK_EXERCISES: Exercise[] = [
@@ -287,6 +292,30 @@ const FALLBACK_WEARABLE_PROVIDERS: WorkoutProvider[] = [
     imageUrl: "/images/wearable-suunto.svg",
   },
   {
+    id: "apple_health",
+    name: "Apple Watch / Health",
+    mode: "FILE_EXPORT",
+    summary: "Экспортируйте активности из Apple Health в CSV/JSON и импортируйте их в кабинет.",
+    formats: ["csv", "json"],
+    imageUrl: "/images/wearable-apple.svg",
+  },
+  {
+    id: "huawei_health",
+    name: "Huawei Health",
+    mode: "FILE_EXPORT",
+    summary: "Экспортируйте тренировки из Huawei Health в CSV/GPX и загружайте через импорт.",
+    formats: ["csv", "gpx"],
+    imageUrl: "/images/wearable-huawei.svg",
+  },
+  {
+    id: "xiaomi_mi_fitness",
+    name: "Xiaomi Mi Fitness",
+    mode: "FILE_EXPORT",
+    summary: "Поддерживается импорт тренировок из Xiaomi Mi Fitness в CSV/GPX формате.",
+    formats: ["csv", "gpx"],
+    imageUrl: "/images/wearable-xiaomi.svg",
+  },
+  {
     id: "universal_api",
     name: "Универсальный API",
     mode: "API_PUSH",
@@ -294,6 +323,15 @@ const FALLBACK_WEARABLE_PROVIDERS: WorkoutProvider[] = [
     formats: ["json"],
     imageUrl: "/images/wearable-api.svg",
   },
+];
+
+const POPULAR_WEARABLES = [
+  { name: "Garmin", imageUrl: "/images/wearable-garmin.jpg" },
+  { name: "Polar", imageUrl: "/images/wearable-polar.jpg" },
+  { name: "Apple Watch", imageUrl: "/images/wearable-apple.svg" },
+  { name: "Huawei", imageUrl: "/images/wearable-huawei.svg" },
+  { name: "Xiaomi", imageUrl: "/images/wearable-xiaomi.svg" },
+  { name: "Suunto", imageUrl: "/images/wearable-suunto.svg" },
 ];
 
 function formatMoney(kopecks: number, currency: string) {
@@ -779,6 +817,27 @@ function HomePage({ session }: { session: Session | null }) {
           <p className="mt-2 text-zinc-300">YooKassa для монетизации и универсальный API-импорт тренировочной активности.</p>
         </div>
       </section>
+
+      <section className="mx-auto w-full max-w-6xl px-6 pb-18">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold text-white">Популярные носимые устройства</h2>
+            <p className="mt-2 text-zinc-300">Подключайте трекеры через импорт файла или API-ключ прямо в кабинете.</p>
+          </div>
+          <Link to={session ? "/profile" : "/auth"} className="ui-btn ui-btn-ghost">
+            {session ? "Открыть подключения" : "Войти для подключения"}
+          </Link>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {POPULAR_WEARABLES.map((device) => (
+            <div key={device.name} className="grid grid-cols-[84px_1fr] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              <img src={device.imageUrl} alt={device.name} className="h-16 w-full rounded-xl object-cover" loading="lazy" />
+              <p className="text-sm font-medium text-zinc-200">{device.name}</p>
+            </div>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }
@@ -993,6 +1052,7 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<AiStatus>({ mode: "local", model: "local-fallback-coach" });
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
     {
       role: "assistant",
@@ -1011,6 +1071,28 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
     }
     return "Сделаем базовый старт: 3 тренировки в неделю, 5-6 упражнений на сессию, 3 подхода по 8-12 повторений и постепенная прогрессия нагрузки каждую неделю.";
   }, []);
+
+  useEffect(() => {
+    let canceled = false;
+
+    const loadStatus = async () => {
+      try {
+        const payload = await apiFetch<AiStatus>("/api/ai/status", undefined, true);
+        if (!canceled) {
+          setStatus(payload);
+        }
+      } catch {
+        if (!canceled) {
+          setStatus({ mode: "local", model: "local-fallback-coach" });
+        }
+      }
+    };
+
+    void loadStatus();
+    return () => {
+      canceled = true;
+    };
+  }, [apiFetch]);
 
   const send = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1042,6 +1124,7 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
       setMessages((previous) => [...previous, { role: "assistant", content: payload.reply }]);
     } catch (_sendError) {
       setError("Сейчас отвечаю в режиме встроенного тренера. Можно продолжать диалог.");
+      setStatus({ mode: "local", model: "local-fallback-coach" });
       setMessages((previous) => [...previous, { role: "assistant", content: buildOfflineReply(userMessage.content) }]);
     } finally {
       setSending(false);
@@ -1051,6 +1134,10 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
   return (
     <Page title="AI-чат" subtitle="Диалог с ассистентом на базе Grok через безопасный backend-прокси.">
       <section className="rounded-3xl border border-white/12 bg-white/[0.04] p-5 md:p-6">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-300">
+          <span className={`h-2 w-2 rounded-full ${status.mode === "grok" ? "bg-emerald-300" : "bg-amber-300"}`} />
+          {status.mode === "grok" ? "AI режим: Grok" : "AI режим: встроенный тренер"}
+        </div>
         <div className="max-h-[50vh] space-y-3 overflow-y-auto border-b border-white/10 pb-5">
           <AnimatePresence>
             {messages.map((message, index) => (

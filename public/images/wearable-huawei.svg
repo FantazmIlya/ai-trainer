@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="640" y2="400" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111827"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="400" rx="28" fill="url(#bg)"/>
+  <rect x="72" y="72" width="496" height="256" rx="24" fill="rgba(9,9,11,0.35)" stroke="rgba(255,255,255,0.2)"/>
+  <path d="M320 140 352 210H288l32-70Z" fill="#F87171"/>
+  <path d="M240 152 274 210H206l34-58Z" fill="#FCA5A5"/>
+  <path d="M400 152 434 210H366l34-58Z" fill="#FCA5A5"/>
+  <path d="M192 188 228 244H156l36-56Z" fill="#FECACA"/>
+  <path d="M448 188 484 244H412l36-56Z" fill="#FECACA"/>
+  <text x="320" y="292" fill="#E5E7EB" font-family="Arial, Helvetica, sans-serif" font-size="28" text-anchor="middle">Huawei Health</text>
+</svg>

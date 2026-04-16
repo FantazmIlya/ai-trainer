@@ -1,5 +1,12 @@
 import "dotenv/config";
 
+function toBool(value, fallback = false) {
+  if (value == null || value === "") {
+    return fallback;
+  }
+  return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
+}
+
 const requiredVars = [
   "DATABASE_URL",
   "JWT_ACCESS_SECRET",
@@ -24,6 +31,7 @@ export const env = {
   grokApiKey: process.env.GROK_API_KEY || "",
   grokBaseUrl: process.env.GROK_BASE_URL || "https://api.x.ai/v1",
   grokModel: process.env.GROK_MODEL || "grok-4.20-reasoning",
+  aiForceLocal: toBool(process.env.AI_FORCE_LOCAL, false),
   aiRateLimitWindowSec: Number(process.env.AI_RATE_LIMIT_WINDOW_SEC || 60),
   aiRateLimitMaxRequests: Number(process.env.AI_RATE_LIMIT_MAX_REQUESTS || 20),
   yookassaShopId: process.env.YOOKASSA_SHOP_ID || "",
