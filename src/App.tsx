@@ -112,7 +112,7 @@ type ApiError = {
 };
 
 type AiStatus = {
-  mode: "grok" | "local";
+  mode: "openrouter" | "local";
   model: string;
   reasonCode?: "FORCE_LOCAL" | "NO_API_KEY" | null;
   hint?: string | null;
@@ -828,7 +828,7 @@ function HomePage({ session }: { session: Session | null }) {
             transition={{ delay: 0.2 }}
             className="mt-6 max-w-2xl text-lg text-zinc-100"
           >
-            Ведите журнал тренировок, общайтесь с AI-ассистентом на базе Grok, изучайте библиотеку упражнений и
+            Ведите журнал тренировок, общайтесь с AI-ассистентом, изучайте библиотеку упражнений и
             управляйте подпиской через YooKassa.
           </motion.p>
           <motion.div
@@ -1120,14 +1120,14 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
   }, []);
 
   const setupHint = useMemo(() => {
-    if (status.mode === "grok") {
+    if (status.mode === "openrouter") {
       return null;
     }
     if (status.reasonCode === "FORCE_LOCAL") {
       return "Сейчас включен принудительный локальный режим. Поставьте AI_FORCE_LOCAL=false и перезапустите backend.";
     }
     if (status.reasonCode === "NO_API_KEY") {
-      return "Не найден GROK_API_KEY в backend/.env. Добавьте ключ и перезапустите backend через PM2.";
+      return "Не найден OPENROUTER_API_KEY в backend/.env. Добавьте ключ и перезапустите backend через PM2.";
     }
     return "Сейчас ответы идут через встроенного тренера. Это рабочий резервный режим.";
   }, [status.mode, status.reasonCode]);
@@ -1195,11 +1195,11 @@ function ChatPage({ apiFetch }: { apiFetch: <T>(path: string, init?: RequestInit
   };
 
   return (
-    <Page title="AI-чат" subtitle="Диалог с ассистентом на базе Grok через безопасный backend-прокси.">
+    <Page title="AI-чат" subtitle="Диалог с ассистентом через OpenRouter (бесплатные модели) и безопасный backend-прокси.">
       <section className="rounded-3xl border border-white/12 bg-white/[0.04] p-5 md:p-6">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-300">
-          <span className={`h-2 w-2 rounded-full ${status.mode === "grok" ? "bg-emerald-300" : "bg-amber-300"}`} />
-          {status.mode === "grok" ? "AI режим: Grok" : "AI режим: встроенный тренер"}
+          <span className={`h-2 w-2 rounded-full ${status.mode === "openrouter" ? "bg-emerald-300" : "bg-amber-300"}`} />
+          {status.mode === "openrouter" ? "AI режим: OpenRouter" : "AI режим: встроенный тренер"}
         </div>
 
         {setupHint && (

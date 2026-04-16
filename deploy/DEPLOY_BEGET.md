@@ -67,9 +67,11 @@ JWT_ACCESS_EXPIRES=15m
 JWT_REFRESH_EXPIRES_DAYS=30
 CORS_ORIGIN=https://your-domain.com
 
-GROK_API_KEY=replace_grok_api_key
-GROK_BASE_URL=https://api.x.ai/v1
-GROK_MODEL=grok-4.20-reasoning
+OPENROUTER_API_KEY=replace_openrouter_api_key
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_MODEL=deepseek/deepseek-chat-v3-0324:free
+OPENROUTER_SITE_URL=https://your-domain.com
+OPENROUTER_SITE_NAME=AI Trainer
 AI_RATE_LIMIT_WINDOW_SEC=60
 AI_RATE_LIMIT_MAX_REQUESTS=20
 

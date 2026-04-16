@@ -91,7 +91,7 @@ Admin (Bearer token with ADMIN role):
 
 ## AI endpoints
 
-- `POST /api/ai/chat` - chat with Grok through secure server-side proxy (Bearer token required)
+- `POST /api/ai/chat` - chat with OpenRouter (free models) through secure server-side proxy (Bearer token required)
 
 Request body example:
 
@@ -106,11 +106,13 @@ Request body example:
 }
 ```
 
-### Grok environment variables
+### AI environment variables (OpenRouter)
 
-- `GROK_API_KEY` - your API key from xAI console
-- `GROK_BASE_URL` - default `https://api.x.ai/v1`
-- `GROK_MODEL` - default `grok-4.20-reasoning`
+- `OPENROUTER_API_KEY` - your API key from OpenRouter
+- `OPENROUTER_BASE_URL` - default `https://openrouter.ai/api/v1`
+- `OPENROUTER_MODEL` - default `deepseek/deepseek-chat-v3-0324:free`
+- `OPENROUTER_SITE_URL` - optional site URL for OpenRouter headers
+- `OPENROUTER_SITE_NAME` - optional site name for OpenRouter headers
 - `AI_RATE_LIMIT_WINDOW_SEC` - per-user limit window in seconds
 - `AI_RATE_LIMIT_MAX_REQUESTS` - max requests per user in window
 

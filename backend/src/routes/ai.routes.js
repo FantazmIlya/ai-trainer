@@ -19,10 +19,10 @@ const aiChatSchema = z.object({
 });
 
 function getAiMode() {
-  if (env.aiForceLocal || !env.grokApiKey) {
+  if (env.aiForceLocal || !env.openrouterApiKey) {
     return "local";
   }
-  return "grok";
+  return "openrouter";
 }
 
 function getAiStatusPayload() {
@@ -32,23 +32,23 @@ function getAiStatusPayload() {
       model: "local-fallback-coach",
       reasonCode: "FORCE_LOCAL",
       hint: "Выключите AI_FORCE_LOCAL в backend/.env и перезапустите PM2 с --update-env.",
-      hasApiKey: Boolean(env.grokApiKey),
+      hasApiKey: Boolean(env.openrouterApiKey),
     };
   }
 
-  if (!env.grokApiKey) {
+  if (!env.openrouterApiKey) {
     return {
       mode: "local",
       model: "local-fallback-coach",
       reasonCode: "NO_API_KEY",
-      hint: "Добавьте GROK_API_KEY в backend/.env и перезапустите PM2 с --update-env.",
+      hint: "Добавьте OPENROUTER_API_KEY в backend/.env и перезапустите PM2 с --update-env.",
       hasApiKey: false,
     };
   }
 
   return {
-    mode: "grok",
-    model: env.grokModel,
+    mode: "openrouter",
+    model: env.openrouterModel,
     reasonCode: null,
     hint: null,
     hasApiKey: true,
@@ -138,18 +138,20 @@ router.post("/chat", authGuard, async (req, res, next) => {
     }
 
     const requestBody = {
-      model: model || env.grokModel,
+      model: model || env.openrouterModel,
       messages,
       temperature,
       max_tokens: maxTokens,
       stream: false,
     };
 
-    const response = await fetch(`${env.grokBaseUrl}/chat/completions`, {
+    const response = await fetch(`${env.openrouterBaseUrl}/chat/completions`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.grokApiKey}`,
+        Authorization: `Bearer ${env.openrouterApiKey}`,
         "Content-Type": "application/json",
+        ...(env.openrouterSiteUrl ? { "HTTP-Referer": env.openrouterSiteUrl } : {}),
+        ...(env.openrouterSiteName ? { "X-Title": env.openrouterSiteName } : {}),
       },
       body: JSON.stringify(requestBody),
     });
