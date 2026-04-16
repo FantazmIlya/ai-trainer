@@ -33,6 +33,37 @@ const pushSchema = z.object({
   externalId: z.string().trim().max(160).optional(),
 });
 
+const wearableProviders = [
+  {
+    id: "garmin",
+    name: "Garmin Connect",
+    mode: "FILE_EXPORT",
+    summary: "Экспорт тренировки из Garmin Connect в GPX/TCX и импорт в кабинет.",
+    formats: ["gpx", "tcx"],
+  },
+  {
+    id: "polar",
+    name: "Polar Flow",
+    mode: "FILE_EXPORT",
+    summary: "Экспорт тренировок в GPX/CSV и загрузка в один клик через импорт файла.",
+    formats: ["gpx", "csv"],
+  },
+  {
+    id: "suunto",
+    name: "Suunto",
+    mode: "FILE_EXPORT",
+    summary: "Выгрузка тренировок из Suunto App в GPX с последующим импортом.",
+    formats: ["gpx"],
+  },
+  {
+    id: "universal_api",
+    name: "Универсальный API",
+    mode: "API_PUSH",
+    summary: "Подключение через персональный API-ключ для любого трекера с webhook или автоматизацией.",
+    formats: ["json"],
+  },
+];
+
 function hashApiKey(value) {
   return createHash("sha256").update(`${env.workoutApiKeySalt}:${value}`).digest("hex");
 }
@@ -231,6 +262,10 @@ router.get("/integration/me", authGuard, async (req, res, next) => {
   } catch (error) {
     return next(error);
   }
+});
+
+router.get("/integration/providers", authGuard, (_req, res) => {
+  return res.json({ providers: wearableProviders });
 });
 
 router.post("/integration/regenerate-key", authGuard, async (req, res, next) => {

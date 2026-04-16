@@ -98,6 +98,14 @@ type WorkoutIntegrationMeta = {
   lastUsedAt: string | null;
 };
 
+type WorkoutProvider = {
+  id: string;
+  name: string;
+  mode: "FILE_EXPORT" | "API_PUSH";
+  summary: string;
+  formats: string[];
+};
+
 type ApiError = {
   message: string;
 };
@@ -140,6 +148,139 @@ const FALLBACK_EXERCISES: Exercise[] = [
     videoUrl: "https://www.youtube.com/watch?v=pSHjTRCQxIw",
     tags: ["кор", "пресс", "стабилизация"],
     isPublished: true,
+  },
+  {
+    id: "local-lunge",
+    title: "Выпады вперед",
+    muscleGroup: "Ноги и ягодицы",
+    level: "BEGINNER",
+    description:
+      "Держите корпус ровным, шагайте вперед и опускайтесь, пока оба колена не будут около 90 градусов. 3 подхода по 10-12 повторений на каждую ногу.",
+    imageUrl: "/images/ex-lunge.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=QOVaHwm-Q6U",
+    tags: ["ноги", "баланс", "дом"],
+    isPublished: true,
+  },
+  {
+    id: "local-row",
+    title: "Тяга к поясу в тренажере",
+    muscleGroup: "Спина и бицепс",
+    level: "INTERMEDIATE",
+    description:
+      "Сохраняйте нейтральную спину, тяните рукоять к нижним ребрам и контролируйте негативную фазу. 3-4 подхода по 8-12 повторений.",
+    imageUrl: "/images/ex-row.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=GZbfZ033f74",
+    tags: ["спина", "тяга", "зал"],
+    isPublished: true,
+  },
+  {
+    id: "local-deadbug",
+    title: "Dead Bug",
+    muscleGroup: "Кор и поясница",
+    level: "BEGINNER",
+    description:
+      "Лежа на спине, прижмите поясницу к полу. Попеременно выпрямляйте противоположные руку и ногу, не теряя контроль корпуса.",
+    imageUrl: "/images/ex-deadbug.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=g_BYB0R-4Ws",
+    tags: ["кор", "осанка", "реабилитация"],
+    isPublished: true,
+  },
+  {
+    id: "local-burpee",
+    title: "Берпи",
+    muscleGroup: "Функциональная выносливость",
+    level: "ADVANCED",
+    description:
+      "Из стойки опуститесь в упор лежа, сделайте отжимание по желанию и вернитесь прыжком вверх. Начните с 3 раундов по 8-10 повторений.",
+    imageUrl: "/images/ex-burpee.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=TU8QYVW0gDU",
+    tags: ["hiit", "кардио", "взрывная сила"],
+    isPublished: true,
+  },
+  {
+    id: "local-glute-bridge",
+    title: "Ягодичный мост",
+    muscleGroup: "Ягодицы и задняя поверхность бедра",
+    level: "BEGINNER",
+    description:
+      "Лягте на спину, стопы ближе к тазу. Поднимайте таз, сжимая ягодицы, и удерживайте верхнюю точку 1-2 секунды.",
+    imageUrl: "/images/ex-squat.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=wPM8icPu6H8",
+    tags: ["ягодицы", "дом", "стабилизация"],
+    isPublished: true,
+  },
+  {
+    id: "local-shoulder-press",
+    title: "Жим гантелей сидя",
+    muscleGroup: "Плечи",
+    level: "INTERMEDIATE",
+    description:
+      "Сидя на скамье держите корпус стабильным, выжимайте гантели вверх без прогиба в пояснице. 3 подхода по 8-10 повторений.",
+    imageUrl: "/images/ex-pushup.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=B-aVuyhvLHU",
+    tags: ["плечи", "гантели", "сила"],
+    isPublished: true,
+  },
+  {
+    id: "local-mountain-climber",
+    title: "Скалолаз",
+    muscleGroup: "Кор и кардио",
+    level: "INTERMEDIATE",
+    description:
+      "В упоре лежа подтягивайте колени к груди в умеренном темпе, сохраняя ровную линию корпуса. 4 интервала по 30-45 секунд.",
+    imageUrl: "/images/ex-plank.jpg",
+    videoUrl: "https://www.youtube.com/watch?v=nmwgirgXLYM",
+    tags: ["кардио", "кор", "интервалы"],
+    isPublished: true,
+  },
+];
+
+const FALLBACK_WORKOUTS: Workout[] = [
+  {
+    id: "demo-workout-1",
+    source: "MANUAL",
+    title: "Легкий бег",
+    type: "Бег",
+    startedAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    distanceKm: 4.2,
+    durationMin: 31,
+    calories: 320,
+    notes: "Ровный темп без ускорений",
+  },
+  {
+    id: "demo-workout-2",
+    source: "FILE_IMPORT",
+    title: "Домашняя силовая",
+    type: "Силовая",
+    startedAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
+    distanceKm: null,
+    durationMin: 42,
+    calories: 280,
+    notes: "Присед, отжимания, планка",
+  },
+];
+
+const FALLBACK_WEARABLE_PROVIDERS: WorkoutProvider[] = [
+  {
+    id: "garmin",
+    name: "Garmin Connect",
+    mode: "FILE_EXPORT",
+    summary: "Экспортируйте тренировку в GPX/TCX и загружайте в кабинет.",
+    formats: ["gpx", "tcx"],
+  },
+  {
+    id: "polar",
+    name: "Polar Flow",
+    mode: "FILE_EXPORT",
+    summary: "Поддерживается экспорт GPX/CSV и импорт через форму файла.",
+    formats: ["gpx", "csv"],
+  },
+  {
+    id: "universal_api",
+    name: "Универсальный API",
+    mode: "API_PUSH",
+    summary: "Любое устройство или приложение может отправлять данные напрямую через API-ключ.",
+    formats: ["json"],
   },
 ];
 
@@ -955,6 +1096,8 @@ function ProfilePage({
   const [profile, setProfile] = useState<User | null>(null);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [integration, setIntegration] = useState<{ endpoint: string; apiKey: WorkoutIntegrationMeta | null } | null>(null);
+  const [providers, setProviders] = useState<WorkoutProvider[]>(FALLBACK_WEARABLE_PROVIDERS);
+  const [isDemoWorkouts, setIsDemoWorkouts] = useState(false);
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -965,16 +1108,27 @@ function ProfilePage({
     setError(null);
     setSuccess(null);
     try {
-      const [me, workoutsPayload, integrationPayload] = await Promise.all([
+      const [me, workoutsPayload, integrationPayload, providersPayload] = await Promise.all([
         apiFetch<{ user: User }>("/api/auth/me", undefined, true),
         apiFetch<{ items: Workout[] }>("/api/workouts", undefined, true),
         apiFetch<{ endpoint: string; apiKey: WorkoutIntegrationMeta | null }>("/api/workouts/integration/me", undefined, true),
+        apiFetch<{ providers: WorkoutProvider[] }>("/api/workouts/integration/providers", undefined, true),
       ]);
       setProfile(me.user);
-      setWorkouts(workoutsPayload.items);
+      if (workoutsPayload.items.length) {
+        setWorkouts(workoutsPayload.items);
+        setIsDemoWorkouts(false);
+      } else {
+        setWorkouts(FALLBACK_WORKOUTS);
+        setIsDemoWorkouts(true);
+      }
       setIntegration(integrationPayload);
+      setProviders(providersPayload.providers.length ? providersPayload.providers : FALLBACK_WEARABLE_PROVIDERS);
       await refreshCurrentUser();
     } catch (loadError) {
+      setWorkouts(FALLBACK_WORKOUTS);
+      setIsDemoWorkouts(true);
+      setProviders(FALLBACK_WEARABLE_PROVIDERS);
       setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить кабинет");
     } finally {
       setLoading(false);
@@ -1070,6 +1224,29 @@ function ProfilePage({
     }
   };
 
+  const workoutTemplates = [
+    {
+      title: "Ноги и ягодицы",
+      imageUrl: "/images/ex-lunge.jpg",
+      summary: "Присед, выпады, ягодичный мост, румынская тяга. 45-55 минут.",
+    },
+    {
+      title: "Верх тела",
+      imageUrl: "/images/ex-row.jpg",
+      summary: "Отжимания, тяга к поясу, жим гантелей сидя, планка. 40-50 минут.",
+    },
+    {
+      title: "Кор и мобильность",
+      imageUrl: "/images/ex-deadbug.jpg",
+      summary: "Dead bug, планка, скалолаз, динамическая растяжка. 25-35 минут.",
+    },
+    {
+      title: "HIIT сжигание",
+      imageUrl: "/images/ex-burpee.jpg",
+      summary: "Берпи, прыжки, выпады, интервалы 30/30. 20-25 минут.",
+    },
+  ];
+
   return (
     <Page title="Личный кабинет" subtitle="Управление профилем и журналом тренировок без зависимости от внешних платформ.">
       {loading && <p className="text-zinc-300">Загрузка данных...</p>}
@@ -1089,27 +1266,15 @@ function ProfilePage({
             <h2 className="text-xl font-semibold">Готовые тренировочные шаблоны</h2>
             <p className="mt-2 text-sm text-zinc-400">Выберите шаблон и добавляйте упражнения в свой недельный план.</p>
             <div className="mt-5 divide-y divide-white/10 border-y border-white/10">
-              <div className="grid gap-4 py-4 md:grid-cols-[160px_1fr] md:items-center">
-                <img src="/images/ex-squat.jpg" alt="Ноги и ягодицы" className="h-28 w-full rounded-2xl object-cover" />
-                <div>
-                  <h3 className="font-medium text-zinc-100">Ноги и ягодицы</h3>
-                  <p className="mt-1 text-sm text-zinc-400">Присед, выпады, ягодичный мост. 45 минут, 3-4 упражнения.</p>
+              {workoutTemplates.map((template) => (
+                <div key={template.title} className="grid gap-4 py-4 md:grid-cols-[160px_1fr] md:items-center">
+                  <img src={template.imageUrl} alt={template.title} className="h-28 w-full rounded-2xl object-cover" />
+                  <div>
+                    <h3 className="font-medium text-zinc-100">{template.title}</h3>
+                    <p className="mt-1 text-sm text-zinc-400">{template.summary}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="grid gap-4 py-4 md:grid-cols-[160px_1fr] md:items-center">
-                <img src="/images/ex-pushup.jpg" alt="Верх тела" className="h-28 w-full rounded-2xl object-cover" />
-                <div>
-                  <h3 className="font-medium text-zinc-100">Верх тела</h3>
-                  <p className="mt-1 text-sm text-zinc-400">Отжимания, тяги, жим над головой. 40 минут, 4 упражнения.</p>
-                </div>
-              </div>
-              <div className="grid gap-4 py-4 md:grid-cols-[160px_1fr] md:items-center">
-                <img src="/images/ex-plank.jpg" alt="Кор и выносливость" className="h-28 w-full rounded-2xl object-cover" />
-                <div>
-                  <h3 className="font-medium text-zinc-100">Кор и выносливость</h3>
-                  <p className="mt-1 text-sm text-zinc-400">Планка, интервальный кардио-блок, мобилизация. 30 минут.</p>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -1183,14 +1348,25 @@ function ProfilePage({
           </form>
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
-            <h2 className="text-xl font-semibold">Интеграция через API-ключ</h2>
-            <p className="mt-2 text-zinc-300">Передавайте тренировки из любого приложения через ваш персональный endpoint.</p>
+            <h2 className="text-xl font-semibold">Подключение носимых устройств</h2>
+            <p className="mt-2 text-zinc-300">Подключайте Garmin, Polar, Suunto и любые другие трекеры через экспорт файла или API-ключ.</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {providers.map((provider) => (
+                <div key={provider.id} className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                  <p className="font-medium text-zinc-100">{provider.name}</p>
+                  <p className="mt-1 text-sm text-zinc-400">{provider.summary}</p>
+                  <p className="mt-2 text-xs uppercase tracking-[0.14em] text-cyan-300">{provider.mode === "API_PUSH" ? "API push" : "Файловый импорт"}</p>
+                  <p className="mt-1 text-sm text-zinc-500">Форматы: {provider.formats.join(", ")}</p>
+                </div>
+              ))}
+            </div>
             <p className="mt-2 text-sm text-zinc-400">
               Endpoint: <span className="text-zinc-200">{API_BASE}{integration?.endpoint || "/api/workouts/integration/push/{API_KEY}"}</span>
             </p>
             <p className="mt-1 text-sm text-zinc-400">
               Активный ключ: <span className="text-zinc-200">{integration?.apiKey?.keyPreview || "не создан"}</span>
             </p>
+            <p className="mt-1 text-sm text-zinc-500">Пример отправки: POST {API_BASE}/api/workouts/integration/push/&lt;API_KEY&gt;</p>
             {integration?.apiKey?.lastUsedAt && (
               <p className="mt-1 text-sm text-zinc-500">Последнее использование: {new Date(integration.apiKey.lastUsedAt).toLocaleString("ru-RU")}</p>
             )}
@@ -1204,6 +1380,9 @@ function ProfilePage({
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
             <h2 className="text-xl font-semibold">История тренировок</h2>
+            {isDemoWorkouts && (
+              <p className="mt-2 text-sm text-cyan-200">Пока у вас нет собственных тренировок, поэтому показаны демонстрационные примеры.</p>
+            )}
             <div className="mt-4 divide-y divide-white/10 border-t border-white/10">
               {workouts.map((workout) => (
                 <div key={workout.id} className="grid gap-2 py-3 text-sm md:grid-cols-5">
