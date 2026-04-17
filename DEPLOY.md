@@ -1,59 +1,56 @@
-# Инструкция по развертыванию FitMyAI.ru на Beget.com
+# FitMyAI.ru - Deployment Guide for Beget.com
 
-Данная инструкция поможет вам развернуть проект на VPS (Virtual Private Server).
-
-## 1. Аренда сервера
-1. Зайдите в панель Beget -> VPS.
-2. Выберите ОС: **Ubuntu 22.04**.
-3. Тариф: Минимальный подойдет для начала.
-4. После создания сервера вы получите IP-адрес и пароль root.
-
-## 2. Настройка сервера
-Подключитесь по SSH (используйте терминал или Putty):
+## 1. Local Build
 ```bash
-ssh root@your_server_ip
-```
-
-Обновите пакеты и установите Node.js:
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs nginx git
-```
-
-## 3. Подготовка кода
-Клонируйте ваш репозиторий:
-```bash
-git clone https://github.com/yourusername/fitmyai.git /var/www/fitmyai
-cd /var/www/fitmyai
-```
-
-Установите зависимости и соберите фронтенд:
-```bash
-npm install
 npm run build
 ```
+This will create a `dist` folder.
 
-## 4. Настройка Nginx
-Создайте конфигурацию для вашего домена `fitmyai.ru`:
+## 2. Server Preparation (Ubuntu 22.04 VPS)
+Connect via SSH and run:
 ```bash
-nano /etc/nginx/sites-available/fitmyai.ru
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y nginx nodejs npm certbot python3-certbot-nginx
+sudo npm install -g pm2
 ```
 
-Вставьте следующий конфиг:
+## 3. Upload Files
+Upload the contents of your project to `/var/www/fitmyai.ru/` (using SFTP or FileZilla).
+Structure should be:
+- `/var/www/fitmyai.ru/dist/` (contains index.html, assets)
+- `/var/www/fitmyai.ru/server/` (contains index.js, package.json)
+
+## 4. Fix Folder Name & Permissions (VERY IMPORTANT)
+If your folder is named `fitmyai`, rename it to `fitmyai.ru`:
+```bash
+# Rename the folder
+sudo mv /var/www/fitmyai /var/www/fitmyai.ru
+
+# Fix Permissions (Ensures Nginx can read the files)
+sudo chown -R www-data:www-data /var/www/fitmyai.ru
+sudo chmod -R 755 /var/www/fitmyai.ru
+```
+
+## 5. Nginx Configuration
+Edit the config:
+```bash
+sudo nano /etc/nginx/sites-available/fitmyai.ru
+```
+Paste this (replace `YOUR_SERVER_IP` with your actual IP):
 ```nginx
 server {
     listen 80;
-    server_name fitmyai.ru www.fitmyai.ru;
-    root /var/www/fitmyai/dist;
+    server_name fitmyai.ru www.fitmyai.ru YOUR_SERVER_IP;
+
+    root /var/www/fitmyai.ru/dist;
     index index.html;
 
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # Если есть бэкенд на порту 3000
-    location /api {
-        proxy_pass http://localhost:3000;
+    location /api/ {
+        proxy_pass http://localhost:5000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -62,38 +59,30 @@ server {
     }
 }
 ```
-
-Активируйте конфиг:
+Activate and Restart:
 ```bash
-ln -s /etc/nginx/sites-available/fitmyai.ru /etc/nginx/sites-enabled/
-nginx -t
-systemctl restart nginx
+sudo rm /etc/nginx/sites-enabled/default
+sudo ln -sf /etc/nginx/sites-available/fitmyai.ru /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
 ```
 
-## 5. Установка SSL (HTTPS)
-Бесплатный сертификат от Let's Encrypt:
+## 6. Run Backend (PM2)
 ```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d fitmyai.ru -d www.fitmyai.ru
-```
-
-## 6. Запуск Бэкенда
-Если у вас есть серверная часть (папка `server`):
-```bash
-cd /var/www/fitmyai/server
+cd /var/www/fitmyai.ru/server
 npm install
-sudo npm install -g pm2
 pm2 start index.js --name "fitmyai-api"
 pm2 save
 pm2 startup
 ```
 
-## 7. Переменные окружения (.env)
-Не забудьте создать файл `.env` на сервере для API ключей:
-- `YOOKASSA_SHOP_ID`
-- `YOOKASSA_SECRET_KEY`
-- `GIGACHAT_API_KEY` или `OPENAI_API_KEY`
-- `JWT_SECRET`
+## 7. SSL (HTTPS) - Essential for YooKassa
+```bash
+sudo certbot --nginx -d fitmyai.ru -d www.fitmyai.ru
+```
 
-## Готово!
-Теперь ваше приложение доступно по адресу https://fitmyai.ru
+---
+**Troubleshooting 500 Error:**
+1. Check the error log: `sudo tail -n 20 /var/log/nginx/error.log`
+2. If it says "Permission denied", double check step 4.
+3. Ensure the `root` path in Nginx matches the actual folder on disk exactly.
