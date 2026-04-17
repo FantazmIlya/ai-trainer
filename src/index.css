@@ -1,123 +1,47 @@
 @import "tailwindcss";
 
-:root {
-  color-scheme: dark;
+@theme {
+  --color-apple-blue: #0071E3;
+  --color-apple-gray: #F5F5F7;
+  --color-apple-dark: #1D1D1F;
+  --color-apple-silver: #86868B;
+  
+  --radius-apple: 12px;
+  --radius-apple-lg: 20px;
 }
 
 body {
-  margin: 0;
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at 12% 6%, rgba(56, 189, 248, 0.12), transparent 42%),
-    radial-gradient(circle at 82% 10%, rgba(34, 211, 238, 0.08), transparent 36%),
-    #09090b;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  line-height: 1.58;
+  @apply bg-apple-gray text-apple-dark antialiased selection:bg-apple-blue/20;
 }
 
-#root {
-  min-height: 100vh;
+.glass {
+  @apply bg-white/70 backdrop-blur-md border border-white/20;
 }
 
-a,
-button,
-input,
-select,
-textarea {
-  transition:
-    border-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    color 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+.apple-button-primary {
+  @apply bg-apple-blue text-white rounded-full px-6 py-2.5 font-medium transition-all hover:opacity-90 active:scale-95;
 }
 
-button,
-input,
-select,
-textarea,
-img {
-  border-radius: 18px;
+.apple-button-secondary {
+  @apply bg-white text-apple-dark border border-apple-dark/10 rounded-full px-6 py-2.5 font-medium transition-all hover:bg-apple-gray active:scale-95;
 }
 
-button {
-  line-height: 1.2;
+.apple-card {
+  @apply bg-white rounded-apple-lg p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] transition-all hover:shadow-[0_8px_32px_rgba(0,0,0,0.08)];
 }
 
-h1,
-h2,
-h3 {
-  letter-spacing: -0.015em;
-  text-wrap: balance;
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-p {
-  text-wrap: pretty;
+::-webkit-scrollbar-track {
+  @apply bg-apple-gray;
 }
 
-input,
-select,
-textarea {
-  background-color: rgba(255, 255, 255, 0.045);
-  border-color: rgba(255, 255, 255, 0.14);
+::-webkit-scrollbar-thumb {
+  @apply bg-apple-silver/30 rounded-full;
 }
 
-button:hover {
-  transform: translateY(-1px);
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  border-color: rgba(103, 232, 249, 0.55);
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.14);
-}
-
-@layer components {
-  .ui-input {
-    @apply h-11 w-full rounded-2xl border border-white/14 bg-white/[0.04] px-4 text-sm text-zinc-100 placeholder:text-zinc-500;
-  }
-
-  .ui-select {
-    @apply h-11 w-full appearance-none rounded-2xl border border-white/14 bg-white/[0.04] px-4 pr-10 text-sm text-zinc-100;
-  }
-
-  .ui-textarea {
-    @apply min-h-[120px] w-full rounded-2xl border border-white/14 bg-white/[0.04] px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-500;
-  }
-
-  .ui-btn {
-    @apply inline-flex h-11 shrink-0 items-center justify-center rounded-2xl px-5 text-sm font-medium leading-[1.2] whitespace-nowrap;
-  }
-
-  .ui-btn-compact {
-    @apply h-9 px-3.5 text-xs;
-  }
-
-  .ui-btn-primary {
-    @apply bg-cyan-300 text-zinc-950 hover:bg-cyan-200;
-  }
-
-  .ui-btn-soft {
-    @apply border border-cyan-300/70 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/16;
-  }
-
-  .ui-btn-ghost {
-    @apply border border-white/14 bg-white/[0.03] text-zinc-200 hover:border-white/24 hover:bg-white/[0.06];
-  }
-
-  .ui-tab {
-    @apply inline-flex h-10 shrink-0 items-center justify-center rounded-2xl px-4 text-sm leading-[1.2] whitespace-nowrap;
-  }
-
-  .ui-tab-active {
-    @apply bg-zinc-100 text-zinc-950;
-  }
-
-  .ui-tab-idle {
-    @apply border border-white/14 bg-white/[0.02] text-zinc-300 hover:bg-white/[0.05];
-  }
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-apple-silver/50;
 }
