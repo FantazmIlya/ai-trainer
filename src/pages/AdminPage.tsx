@@ -109,7 +109,7 @@ const AdminPage = () => {
                   </td>
                   <td className="px-8 py-6">
                     <span className={`text-xs font-bold ${user.role === 'Admin' ? 'text-red-500' : user.role === 'Premium' ? 'text-blue-600' : 'text-gray-500'}`}>
-                      {user.role}
+                      {user.role === 'Admin' ? t('admin.admin') : user.role === 'Premium' ? t('admin.premium') : t('admin.free')}
                     </span>
                   </td>
                   <td className="px-8 py-6">

@@ -114,7 +114,7 @@ const AICoachPage = () => {
               </div>
               <div>
                 <h2 className="font-bold text-lg">{t('coach.title')}</h2>
-                <p className="text-xs text-green-500 font-bold uppercase tracking-widest">Active Now</p>
+                <p className="text-xs text-green-500 font-bold uppercase tracking-widest">{t('coach.active')}</p>
               </div>
             </div>
           </div>
